@@ -166,3 +166,51 @@ void SetupLCD()
     ComWrite(0x0C);
     delay_micro(100);
 }
+
+void SetupPort4()
+{
+    //DB0=BIT0, DB1=BIT1, DB2=BIT2, DB3=BIT3, DB4=BIT4, DB5=BIT5, DB6=BIT6, DB7=BIT7
+    DB0_PORT->SEL0 &=~ DB0_PIN;
+    DB0_PORT->SEL1 &=~ DB0_PIN;
+    DB0_PORT->DIR  |=  DB0_PIN;
+    DB1_PORT->SEL0 &=~ DB1_PIN;
+    DB1_PORT->SEL1 &=~ DB1_PIN;
+    DB1_PORT->DIR  |=  DB1_PIN;
+    DB2_PORT->SEL0 &=~ DB2_PIN;
+    DB2_PORT->SEL1 &=~ DB2_PIN;
+    DB2_PORT->DIR  |=  DB2_PIN;
+    DB3_PORT->SEL0 &=~ DB3_PIN;
+    DB3_PORT->SEL1 &=~ DB3_PIN;
+    DB3_PORT->DIR  |=  DB3_PIN;
+    DB4_PORT->SEL0 &=~ DB4_PIN;
+    DB4_PORT->SEL1 &=~ DB4_PIN;
+    DB4_PORT->DIR  |=  DB4_PIN;
+    DB5_PORT->SEL0 &=~ DB5_PIN;
+    DB5_PORT->SEL1 &=~ DB5_PIN;
+    DB5_PORT->DIR  |=  DB5_PIN;
+    DB6_PORT->SEL0 &=~ DB6_PIN;
+    DB6_PORT->SEL1 &=~ DB6_PIN;
+    DB6_PORT->DIR  |=  DB6_PIN;
+    DB7_PORT->SEL0 &=~ DB7_PIN;
+    DB7_PORT->SEL1 &=~ DB7_PIN;
+    DB7_PORT->DIR  |=  DB7_PIN;
+    RS_PORT->SEL0 &=~ RS_PIN;
+    RS_PORT->SEL1 &=~ RS_PIN;
+    RS_PORT->DIR  |=  RS_PIN;
+    E_PORT ->SEL0 &=~ E_PIN;
+    E_PORT ->SEL1 &=~ E_PIN;
+    E_PORT ->DIR  |=  E_PIN;
+}
+
+//This function sets up the SysTick Timer used in the program
+void SetupSysTick(void)
+{
+    //disable SysTick during setup
+    SysTick ->CTRL = 0;
+    //max reload value
+    SysTick ->LOAD = 0xFFFFFF;
+    //any write to current value clears it
+    SysTick ->VAL = 0;
+    //enable SysTick, CPU click, no interrupts
+    SysTick ->CTRL = 0x5;
+}

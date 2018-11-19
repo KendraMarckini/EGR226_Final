@@ -9,6 +9,10 @@
 #define LCD_CODE_H_
 
 //Macros
+#define RS_PORT P6
+#define RS_PIN  BIT0
+#define E_PORT P3
+#define E_PIN  BIT2
 #define DB0_PORT P4
 #define DB0_PIN  BIT0
 #define DB1_PORT P4
@@ -25,10 +29,6 @@
 #define DB6_PIN  BIT6
 #define DB7_PORT P4
 #define DB7_PIN  BIT7
-#define RS_PORT P6
-#define RS_PIN  BIT0
-#define E_PORT P3
-#define E_PIN  BIT2
 
 //Prototypes
 void PrintStringWithLength(char *STRING, int size);
@@ -41,6 +41,7 @@ void PulseE();
 void delay_micro(uint32_t us);
 void delay_milli(uint32_t ms);
 void SetupLCD();
-
+void SetupPort4();
+void SetupSysTick(void);
 
 #endif /* LCD_CODE_H_ */
