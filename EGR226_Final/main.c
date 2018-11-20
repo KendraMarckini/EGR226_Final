@@ -3,13 +3,20 @@
  * Class: EGR 226-902
  * Program: Final Project */
 
+//Use 32768 quartz timer
+//timerA.0 16
+//attach to 32 clock
+//count on timer 0 to 32768 to get one second
+//interrupt on the compare where it resets and that could give one second
+
+//%2d = leading zero
+
 //Preprocessor directives
 #include "msp.h"
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
 #include "LCD_Code.h"
-//#include "Timer_Codes.h"
 
 //Macros
 #define DOT_HALF    3000000
@@ -39,7 +46,6 @@
 #define MAX_NOTE    74
 
 //Global variables
-volatile uint32_t second;
 int note = 0;
 int breath = 0;
 float music_note_sequence[][2] = {
@@ -62,6 +68,7 @@ float music_note_sequence[][2] = {
                                  {D4,DOT_QUAR},{E4,EIGHTH},{G4,EIGHTH},{E4,SIXTH},
                                  {D4,SIXTH},{C4,EIGHTH},{D4,EIGHTH},{G3,DOT_QUAR},
                                  {D4,EIGHTH},{F3_SHARP,DOT_QUAR},{A3,HALF},
+
                                  {0, QUAR}};
 
 char Str1[16] = "";
@@ -73,15 +80,17 @@ int Alarm_Status = 1;
 
 float time_on=0, Brightness = 0;
 
+volatile uint32_t second;
+
 //Clocks
-int Clk_Hour=10, Clk_Min=10, Clk_Min09=0, Clk_Sec=55;
-int Alr_Hour=11, Alr_Min=15, Alr_Min09=0;
+int Clk_Hour=10, Clk_Min=9, Clk_Min09=0, Clk_Sec=55;
+int Alr_Hour=10, Alr_Min=15, Alr_Min09=0;
 int Light_Time=6, Ala_Time=6, Clk_Time=6;
 int counter = 0;
 int AlarmGoingOff = 0;
 
 //AM/PM
-static char Clock_Time = 'P';
+static char Clock_Time = 'A';
 static char Alarm_Time = 'A';
 
 //Prototypes
@@ -92,7 +101,6 @@ void CurrentDisplay();
 void InitInterrupts();
 void TimerALED();
 void TimerALEDInit();
-void SetupAlarmBuzzer();
 
 void main(void)
 {
@@ -200,16 +208,11 @@ void main(void)
 	           if((Alr_Min == Clk_Min) && (Alr_Hour == Clk_Hour))      //If the alarm time is equal to the clock time
 	           {
 	              AlarmGoingOff = 1;
-	              //Make ^^ the flag for buzzer interrupt
-	              SetupAlarmBuzzer();
 	           }
 
 	           if(Light_Time == 5)
 	           {
-	               while(Light_Time !=0 )
-	               {
-	                   SetupTimer32ForAlarm();
-	               }
+	               SetupTimer32ForAlarm();
 	           }
 
 	           if(Light_Time <= 5)                                     //If the clock is within five minutes of the alarm
@@ -259,14 +262,6 @@ void main(void)
 	}
 }
 
-
-void SetupAlarmBuzzer()
-{
-//TA2.4
-
-
-}
-
 void TimerALED()
 {
     Brightness++;
@@ -282,7 +277,7 @@ void TimerALEDInit()
     P2->SEL1 &=~ (BIT6|BIT7);
     P2->DIR  |=  (BIT6|BIT7);
     P2->OUT  &=~ (BIT6|BIT7);
-    TIMER_A0->CCR[0]  = 18750.0 - 1;
+    TIMER_A0->CCR[0]  = 18750 - 1;
     TIMER_A0->CTL     = TIMER_A_CTL_SSEL__SMCLK |
                         TIMER_A_CTL_MC__UP |
                         TIMER_A_CTL_CLR |
@@ -408,16 +403,19 @@ void PORT2_IRQHandler(void)
     P2 -> IFG  &=~ (BIT5);
 }
 
+int settime =0;
+
 //Sets time and alarm interrupt
 void PORT5_IRQHandler(void)
 {
     //Set time
     if (P5->IFG & BIT7)
     {
+        settime = 0;
         __disable_interrupt();
         //flash hours
         //blink at certain spot until "set time" is pressed again
-        while(!((P5->IN & BIT7) == BIT7))
+        while(settime != 1)
         {
             if(Clk_Min < 10)
                    Clk_Min09 = Clk_Min;
@@ -438,9 +436,8 @@ void PORT5_IRQHandler(void)
             else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour>9))
                 sprintf(Str1, "  %d:%d:0%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 
-            ComWrite(0x90);                  //Moves cursor to third line on LCD
-            PrintString(Str3);               //Print third string
-
+            ComWrite(0x02);                  //Moves cursor to first line on LCD
+            PrintString(Str1);               //Print third string
             delay_milli(1000);
 
             if(Clk_Min < 10)
@@ -462,12 +459,12 @@ void PORT5_IRQHandler(void)
             else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour>9))
                 sprintf(Str1, "    :%d:0%d %cM   ", Clk_Min, Clk_Sec, Clock_Time);
 
-            ComWrite(0x90);                  //Moves cursor to third line on LCD
-            PrintString(Str3);               //Print third string
-
+            ComWrite(0x02);                  //Moves cursor to first line on LCD
+            PrintString(Str1);               //Print third string
+            delay_milli(1000);
 
             //user presses "on/off/up" button to increment hours
-            if(P2->OUT & BIT5)
+            if(P2->IFG & BIT5)
             {
                 Clk_Hour++;
                 //when hours reaches 12 am/pm, go to 1 pm/am
@@ -479,10 +476,11 @@ void PORT5_IRQHandler(void)
                     if(Clock_Time == 'P')
                         Clock_Time = 'A';
                 }
+                P2 -> IFG &=~ BIT5;
             }
 
             //user presses "snooze/down" button to decrement hours
-            if(P2->OUT & BIT4)
+            if(P2->IFG & BIT4)
             {
                 Clk_Hour--;
                 //when hours reaches 1 am/pm, go to 12 pm/am
@@ -494,16 +492,22 @@ void PORT5_IRQHandler(void)
                     if(Clock_Time == 'P')
                         Clock_Time = 'A';
                 }
+                P2 -> IFG &=~ BIT4;
+            }
+
+            if(!(P5->IN & BIT7))
+            {
+                settime = 1;
             }
         }
 
-
         //user presses set-alarm button to go to minutes
-        if(P5->OUT & BIT7)
+        if(!(P5->IN & BIT7))
         {
+            settime = 0;
             //hours stop flashing and minutes start flashing
             //blink at certain spot until "set time" is pressed again
-            while(!((P5->IN & BIT7)==BIT7))
+            while(settime != 1)
             {
                 if(Clk_Min < 10)
                        Clk_Min09 = Clk_Min;
@@ -524,7 +528,9 @@ void PORT5_IRQHandler(void)
                 else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour>9))
                     sprintf(Str1, "  %d:%d:0%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 
-                //delay
+                ComWrite(0x02);                  //Moves cursor to first line on LCD
+                PrintString(Str1);               //Print third string
+                delay_milli(1000);
 
                 if(Clk_Min < 10)
                        Clk_Min09 = Clk_Min;
@@ -545,9 +551,12 @@ void PORT5_IRQHandler(void)
                 else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour>9))
                     sprintf(Str1, "  %d:  :0%d %cM   ", Clk_Hour, Clk_Sec, Clock_Time);
 
+                ComWrite(0x02);                  //Moves cursor to first line on LCD
+                PrintString(Str1);               //Print third string
+                delay_milli(1000);
 
                 //user presses "on/off/up" button to increment minutes
-                if(P2->OUT & BIT5)
+                if(P2->IFG & BIT5)
                 {
                     Clk_Min++;
                     //when minutes reaches 60, go to 0 and increment hour
@@ -565,9 +574,10 @@ void PORT5_IRQHandler(void)
                                 Clock_Time = 'A';
                         }
                     }
+                    P2 -> IFG &=~ BIT5;
                 }
                 //user presses "snooze/down" button to decrement minutes
-                if(P2->OUT & BIT4)
+                if(P2->IFG & BIT4)
                 {
                     Clk_Min--;
                     //when minutes reaches -1, go to 69 and increment hour
@@ -585,12 +595,18 @@ void PORT5_IRQHandler(void)
                                 Clock_Time = 'A';
                         }
                     }
+                    P2 -> IFG &=~ BIT4;
+                }
+                if(!(P5->IN & BIT7))
+                {
+                    settime = 1;
                 }
             }
 
             //user presses set-alarm button again
-            if(P5->OUT & BIT7)
+            if(!(P5->IN & BIT7))
             {
+                settime = 0;
                 //flashing stops and time is now set
                 if(Clk_Min < 10)
                        Clk_Min09 = Clk_Min;
@@ -612,9 +628,8 @@ void PORT5_IRQHandler(void)
                     sprintf(Str1, "  %d:%d:0%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 
                 //clear interrupt
-                P5 -> IFG  &=~ (BIT7);
+                P5 -> IFG &=~ BIT7;
             }
-
         }
     }
     __enable_interrupt();
@@ -853,33 +868,33 @@ void SetUpTimer32ForCounter()
 
 void T32_INT2_IRQHandler()
 {
-    TIMER32_2->INTCLR = 1;              //Clear interrupt flag so it does not interrupt again immediately.
-    if(breath) {                        //Provides separation between notes
-        TIMER_A2->CCR[0] = 0;           //Set output of TimerA to 0
-        TIMER_A2->CCR[1] = 0;
-        TIMER_A2->CCR[2] = 0;
-        TIMER32_2->LOAD = BREATH_TIME;  //Load in breath time to interrupt again
-        breath = 0;                     //Next Timer32 interrupt is no longer a breath, but is a note
-    }
-    else {                                                  //If not a breath (a note)
-        TIMER32_2->LOAD = music_note_sequence[note][1] - 1; //Load into interrupt count down the length of this note
-        if(music_note_sequence[note][0] == REST) {          //If note is actually a rest, load in nothing to TimerA
-            TIMER_A2->CCR[0] = 0;
+
+    TIMER32_2->INTCLR = 1;                                              //Clear interrupt flag so it does not interrupt again immediately.
+        if(breath) {                                                        //Provides separation between notes
+            TIMER_A2->CCR[0] = 0;                                           //Set output of TimerA to 0
             TIMER_A2->CCR[1] = 0;
             TIMER_A2->CCR[2] = 0;
+            TIMER32_2->LOAD = BREATH_TIME;                                  //Load in breath time to interrupt again
+            breath = 0;                                                     //Next Timer32 interrupt is no longer a breath, but is a note
         }
-        else {
-            TIMER_A2->CCR[0] = 3000000 / music_note_sequence[note][0];  //Divide by the frequency of current note to get the period
-            TIMER_A2->CCR[1] = 1500000 / music_note_sequence[note][0];  //50% duty cycle
-            TIMER_A2->CCR[2] = TIMER_A0->CCR[0];                        //Had this in here for fun with interrupts.  Not used right now
+        else {                                                              //If not a breath (a note)
+            TIMER32_2->LOAD = music_note_sequence[note][1] - 1;             //Load into interrupt count down the length of this note
+            if(music_note_sequence[note][0] == REST) {                      //If note is actually a rest, load in nothing to TimerA
+                TIMER_A2->CCR[0] = 0;
+                TIMER_A2->CCR[1] = 0;
+                TIMER_A2->CCR[2] = 0;
+            }
+            else {
+                TIMER_A2->CCR[0] = 3000000 / music_note_sequence[note][0];  //Math in an interrupt is bad behavior, but shows how things are happening.  This takes our clock and divides by the frequency of this note to get the period.
+                TIMER_A2->CCR[1] = 1500000 / music_note_sequence[note][0];  //50% duty cycle
+                TIMER_A2->CCR[2] = TIMER_A0->CCR[0];                        //Had this in here for fun with interrupts.  Not used right now
+            }
+            note = note + 1;                                                //Next note
+            if(note >= MAX_NOTE) {                                          //Go back to the beginning if at the end
+                note = 0;
+            }
+            breath = 1;                                                     //Next time through should be a breath for separation.
         }
-        note = note + 1;                        //Next note
-        if(note >= MAX_NOTE) {                  //Go back to the beginning if at the end
-            note = 0;
-            TIMER32_2->CONTROL = 0b11000011;    //Sets timer 2 for Enabled, Periodic, With Interrupt, No Prescaler, 32 bit mode, One Shot Mode
-        }
-        breath = 1;                             //Next time through should be a breath for separation.
-    }
 }
 
 void TA0_N_IRQHandler()
@@ -895,12 +910,13 @@ void SetupTimer32ForAlarm()
     P5->DIR  |=  (BIT6);
 
     TIMER32_2->CONTROL = 0b11100011;        //Sets timer 2 for Enabled, Periodic, With Interrupt, No Prescaler, 32 bit mode, One Shot Mode
-    NVIC_EnableIRQ(T32_INT2_IRQn);          //Enable Timer32_2 interrupt.
     TIMER32_2->LOAD = 3000000 - 1;          //Set to a count down of 1 second on 3 MHz clock
+    NVIC_EnableIRQ(T32_INT2_IRQn);          //Enable Timer32_2 interrupt
 
     TIMER_A2->CCR[0] = 0;                   // Turn off to start
     TIMER_A2->CCTL[1] = 0b0000000011110100; // Setup Timer A0_1 Reset/Set, Interrupt, No Output
     TIMER_A2->CCR[1] = 0;                   // Turn off timerA to start
+    TIMER_A0->CCR[2] = 0;                                               //Turn off timerA to start
     TIMER_A2->CTL = 0b0000001000010100;     // Count Up mode using SMCLK, Clears, Clear Interrupt Flag
     NVIC_EnableIRQ(TA0_N_IRQn);             // Enable interrupts for CCTL1-6 (if on)
 }
