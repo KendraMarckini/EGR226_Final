@@ -47,7 +47,7 @@
 //Global variables
 int note = 0;
 int breath = 0;
-float music_note_sequence_Alarm[][2] = {{0,QUAR},{C4,QUAR},{0,QUAR}};
+float music_note_sequence_A[][2] = {{0,QUAR},{C4,QUAR},{0,QUAR}};
 float music_note_sequence[][2] = {
                                  //Chorus, 39 notes
                                   {0, QUAR},
@@ -84,11 +84,15 @@ float time_on=0, Brightness = 0;
 volatile uint32_t second;
 
 //Clocks
-int Clk_Hour=10, Clk_Min=14, Clk_Min09=0, Clk_Sec=55;
+int Clk_Hour=10, Clk_Min=9, Clk_Min09=0, Clk_Sec=55;
 int Alr_Hour=10, Alr_Min=15, Alr_Min09=0;
 int Light_Time=6, Ala_Time=6, Clk_Time=6;
 int counter = 0;
 int AlarmGoingOff = 0;
+
+int previous = 10, Hour = 0;
+
+int Speed = 1;
 
 //AM/PM
 static char Clock_Time = 'A';
@@ -96,6 +100,7 @@ static char Alarm_Time = 'A';
 
 //Prototypes
 void Init_ADC14(void);
+void InitHiddenButtons();
 void SetupTimer32ForAlarm();
 void SetUpTimer32ForCounter();
 void CurrentDisplay();
@@ -110,6 +115,7 @@ void main(void)
 	SetupSysTick();
 	SetupPort4();
 	SetupLCD();
+	InitHiddenButtons();
 	InitInterrupts();
 	TimerALEDInit();
 	Init_ADC14();
@@ -139,142 +145,277 @@ void main(void)
 	        sprintf(Str4, "%0.1f", Temp_F);         //Moves cursor to the second line on LCD//place fahrenheit into array
 	        b = strlen(Str4);                       //Calculate length of array
 
-	        //Clock time
-	        Clk_Sec++;
-	        if(Clk_Sec == 60)
+	        //Normal
+	        if (!((P1->IN & BIT1) == BIT1))
+	            Speed = 1;
+
+	        if (!((P1->IN & BIT4) == BIT4))
+	            Speed = 2;
+
+	        //Normal
+	        if(Speed == 1)
 	        {
+	            //Clock time
+	            Clk_Sec++;
+	            if(Clk_Sec == 60)
+	            {
+	                Clk_Min++;
+	                Clk_Sec = 0;
+	            }
+	            if(Clk_Min == 60)
+	            {
+	                Clk_Min = 0;
+	                Clk_Hour++;
+	            }
+	            if(Clk_Hour == 13)
+	                Clk_Hour = 1;
+	            if((Clk_Hour == 12) && (Clk_Min == 0) && (Clk_Sec == 0))
+	            {
+	                if(Clock_Time == 'A')
+	                    Clock_Time = 'P';
+	                else if(Clock_Time == 'P')
+	                    Clock_Time = 'A';
+	            }
+
+	            //Prints clock time
+	            if(Clk_Min < 10)
+	                Clk_Min09 = Clk_Min;
+	            if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour<10))
+	                sprintf(Str1, "   %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
+	            else if((Clk_Sec>9) && (Clk_Min>9) && (Clk_Hour<10))
+	                sprintf(Str1, "   %d:%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	            else if((Clk_Sec>9) && (Clk_Min<10) && (Clk_Hour<10))
+	                sprintf(Str1, "   %d:0%d:%d %cM   ", Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
+	            else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour<10))
+	                sprintf(Str1, "   %d:%d:0%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	            else if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour>9))
+	                sprintf(Str1, "  %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
+	            else if((Clk_Sec>9) && (Clk_Min>9) && (Clk_Hour>9))
+	                sprintf(Str1, "  %d:%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	            else if((Clk_Sec>9) && (Clk_Min<10) && (Clk_Hour>9))
+	                sprintf(Str1, "  %d:0%d:%d %cM   ", Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
+	            else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour>9))
+	                sprintf(Str1, "  %d:%d:0%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+
+	            //Print alarm status
+	            if(Alarm_Status == 0)
+	                sprintf(Str2, "      Off       ");
+	            else if(Alarm_Status == 1)
+	                sprintf(Str2, "       On       ");
+	            else if(Alarm_Status == 2)
+	                sprintf(Str2, "     Snooze     ");
+
+	            //If the alarm is on
+	            if(Alarm_Status == 1)
+	            {
+	                if(Clock_Time == Alarm_Time)                             //If the alarm and clock times are in AM or PM
+	                {
+	                    Clk_Time = (Clk_Hour * 60) + Clk_Min;
+	                    Ala_Time = (Alr_Hour * 60) + Alr_Min;
+	                    Light_Time = Ala_Time - Clk_Time;
+	                }
+	                else if(Clock_Time != Alarm_Time)                        //If the alarm and clock time differ (AM and PM)
+	                {
+	                    Hour = Alr_Hour - Clk_Hour;
+	                    Clk_Time = Clk_Min;
+	                    Ala_Time = (60 * Hour) + Alr_Min;
+	                    Light_Time = Ala_Time - Clk_Time;
+	                }
+
+                    if(Light_Time == 6)
+                    {
+                        AlarmGoingOff = 0;
+                        SetupTimer32ForAlarm();
+                    }
+
+                    if(Light_Time == 0)
+                    {
+                        AlarmGoingOff = 1;
+                        Light_Time = 10;
+                        SetupTimer32ForAlarm();
+                    }
+
+
+	                if((Light_Time <= 5) && (Light_Time>= 0))                                     //If the clock is within five minutes of the alarm
+	                {
+	                    counter++;
+	                    if(counter == 3)
+	                    {
+	                        Brightness++;
+	                        time_on = (Brightness /100.0) * 18750.0;
+	                        TIMER_A0 -> CCR[3]  = time_on;
+	                        TIMER_A0 -> CCR[4]  = time_on;
+	                        counter = 0;
+	                    }
+	                }
+
+	                if((Alr_Min == Clk_Min) && (Alr_Hour == Clk_Hour))      //If the alarm time is equal to the clock time
+	                {
+	                    TIMER_A0 -> CCR[3]  = time_on;
+	                    TIMER_A0 -> CCR[4]  = time_on;
+	                }
+	            }
+
+	            //Print alarm time
+	            if(Alr_Min < 10)
+	                Alr_Min09 = Alr_Min;
+	            if((Alr_Min>9) && (Alr_Hour>9))
+	                sprintf(Str3, "    %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
+	            else if((Alr_Min>9) && (Alr_Hour<10))
+	                sprintf(Str3, "     %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
+	            else if((Alr_Min<10) && (Alr_Hour>9))
+	                sprintf(Str3, "    %d:0%d %cM    ", Alr_Hour, Alr_Min09, Alarm_Time);
+	            else if((Alr_Min<10) && (Alr_Hour<10))
+	                sprintf(Str3, "     %d:0%d %cM    ", Alr_Hour, Alr_Min09, Alarm_Time);
+
+	            //Printing to LCD
+	            ComWrite(0x02);                  //Home cursor
+	            PrintString(Str1);               //Print first string
+	            delay_micro(100);
+	            ComWrite(0xC0);                  //Moves cursor to second line on LCD
+	            PrintString(Str2);               //Print second string
+	            delay_micro(100);
+	            ComWrite(0x90);                  //Moves cursor to third line on LCD
+	            PrintString(Str3);               //Print third string
+	            delay_micro(100);
+	            ComWrite(0xD0);                  //Move cursor to fourth line on LCD
+	            for(i=0;i<5;i++)
+	            {
+	                ComWrite(0x14);              //Shift cursor one space to the right five times
+	            }
+	            PrintStringWithLength(Str4, b);  //Print temperature string
+	            delay_micro(100);
+	            DataWrite(0xDF);                 //Print degree symbol
+	            delay_micro(100);
+	            DataWrite('F');                  //Print units
+	        }
+
+	        //Fast
+	        if(Speed == 2)
+	        {
+	            //Clock time
 	            Clk_Min++;
-	            Clk_Sec = 0;
+	            if(Clk_Min == 60)
+	            {
+	                Clk_Min = 0;
+	                Clk_Hour++;
+	            }
+	            if(Clk_Hour == 13)
+	                Clk_Hour = 1;
+	            if((Clk_Hour == 12) && (Clk_Min == 0) && (Clk_Sec == 0))
+	            {
+	                if(Clock_Time == 'A')
+	                    Clock_Time = 'P';
+	                else if(Clock_Time == 'P')
+	                    Clock_Time = 'A';
+	            }
+
+	            //Prints clock time
+	            if(Clk_Min < 10)
+	                Clk_Min09 = Clk_Min;
+	            if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour<10))
+	                sprintf(Str1, "   %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
+	            else if((Clk_Sec>9) && (Clk_Min>9) && (Clk_Hour<10))
+	                sprintf(Str1, "   %d:%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	            else if((Clk_Sec>9) && (Clk_Min<10) && (Clk_Hour<10))
+	                sprintf(Str1, "   %d:0%d:%d %cM   ", Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
+	            else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour<10))
+	                sprintf(Str1, "   %d:%d:0%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	            else if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour>9))
+	                sprintf(Str1, "  %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
+	            else if((Clk_Sec>9) && (Clk_Min>9) && (Clk_Hour>9))
+	                sprintf(Str1, "  %d:%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	            else if((Clk_Sec>9) && (Clk_Min<10) && (Clk_Hour>9))
+	                sprintf(Str1, "  %d:0%d:%d %cM   ", Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
+	            else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour>9))
+	                sprintf(Str1, "  %d:%d:0%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+
+	            //Print alarm status
+	            if(Alarm_Status == 0)
+	                sprintf(Str2, "      Off       ");
+	            else if(Alarm_Status == 1)
+	                sprintf(Str2, "       On       ");
+	            else if(Alarm_Status == 2)
+	                sprintf(Str2, "     Snooze     ");
+
+	            //If the alarm is on
+	            if(Alarm_Status == 1)
+	            {
+	                if(Clock_Time == Alarm_Time)                             //If the alarm and clock times are in AM or PM
+	                {
+	                    Clk_Time = (Clk_Hour * 60) + Clk_Min;
+	                    Ala_Time = (Alr_Hour * 60) + Alr_Min;
+	                    Light_Time = Ala_Time - Clk_Time;
+
+	                    if(Light_Time < 0)
+	                        Light_Time = 6;
+	                }
+	                else if(Clock_Time != Alarm_Time)                        //If the alarm and clock time differ (AM and PM)
+	                {
+	                    Clk_Time = Clk_Min;
+	                    Ala_Time = 60 + Alr_Min;
+	                    Light_Time = Ala_Time - Clk_Time;
+
+	                    if(Light_Time < 0)
+	                        Light_Time = 6;
+	                }
+
+	                if((Light_Time < 4) && (Light_Time>= 0))                                     //If the clock is within five minutes of the alarm
+	                {
+	                    counter =  counter + 1;
+	                    if(counter <= 5 & counter > 0)
+	                    {
+	                        Brightness = Brightness + 20;
+	                        time_on = (Brightness /100.0) * 18750.0;
+	                        TIMER_A0 -> CCR[3]  = time_on;
+	                        TIMER_A0 -> CCR[4]  = time_on;
+	                        counter = 0;
+	                    }
+	                }
+
+	                if((Alr_Min == Clk_Min) && (Alr_Hour == Clk_Hour))      //If the alarm time is equal to the clock time
+	                {
+	                    AlarmGoingOff = 1;
+	                    Light_Time = 6;
+	                    TIMER_A0 -> CCR[3]  = time_on;
+	                    TIMER_A0 -> CCR[4]  = time_on;
+	                    SetupTimer32ForAlarm();
+	                }
+	            }
+
+	            //Print alarm time
+	            if(Alr_Min < 10)
+	                Alr_Min09 = Alr_Min;
+	            if((Alr_Min>9) && (Alr_Hour>9))
+	                sprintf(Str3, "    %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
+	            else if((Alr_Min>9) && (Alr_Hour<10))
+	                sprintf(Str3, "     %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
+	            else if((Alr_Min<10) && (Alr_Hour>9))
+	                sprintf(Str3, "    %d:0%d %cM    ", Alr_Hour, Alr_Min09, Alarm_Time);
+	            else if((Alr_Min<10) && (Alr_Hour<10))
+	                sprintf(Str3, "     %d:0%d %cM    ", Alr_Hour, Alr_Min09, Alarm_Time);
+
+	            //Printing to LCD
+	            ComWrite(0x02);                  //Home cursor
+	            PrintString(Str1);               //Print first string
+	            delay_micro(100);
+	            ComWrite(0xC0);                  //Moves cursor to second line on LCD
+	            PrintString(Str2);               //Print second string
+	            delay_micro(100);
+	            ComWrite(0x90);                  //Moves cursor to third line on LCD
+	            PrintString(Str3);               //Print third string
+	            delay_micro(100);
+	            ComWrite(0xD0);                  //Move cursor to fourth line on LCD
+	            for(i=0;i<5;i++)
+	            {
+	                ComWrite(0x14);              //Shift cursor one space to the right five times
+	            }
+	            PrintStringWithLength(Str4, b);  //Print temperature string
+	            delay_micro(100);
+	            DataWrite(0xDF);                 //Print degree symbol
+	            delay_micro(100);
+	            DataWrite('F');                  //Print units
 	        }
-	        if(Clk_Min == 60)
-	        {
-	            Clk_Min = 0;
-	            Clk_Hour++;
-	        }
-	        if(Clk_Hour == 13)
-	            Clk_Hour = 1;
-
-	       if((Clk_Hour == 12) && (Clk_Min == 0) && (Clk_Sec == 0))
-	       {
-	           if(Clock_Time == 'A')
-	               Clock_Time = 'P';
-	           else if(Clock_Time == 'P')
-	               Clock_Time = 'A';
-	       }
-
-	       //Prints clock time
-	       if(Clk_Min < 10)
-	           Clk_Min09 = Clk_Min;
-	       if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour<10))
-	           sprintf(Str1, "   %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
-	       else if((Clk_Sec>9) && (Clk_Min>9) && (Clk_Hour<10))
-	           sprintf(Str1, "   %d:%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
-	       else if((Clk_Sec>9) && (Clk_Min<10) && (Clk_Hour<10))
-	           sprintf(Str1, "   %d:0%d:%d %cM   ", Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
-	       else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour<10))
-	           sprintf(Str1, "   %d:%d:0%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
-	       else if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour>9))
-	           sprintf(Str1, "  %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
-	       else if((Clk_Sec>9) && (Clk_Min>9) && (Clk_Hour>9))
-	           sprintf(Str1, "  %d:%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
-	       else if((Clk_Sec>9) && (Clk_Min<10) && (Clk_Hour>9))
-	           sprintf(Str1, "  %d:0%d:%d %cM   ", Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
-	       else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour>9))
-	           sprintf(Str1, "  %d:%d:0%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
-
-	       //Print alarm status
-	       if(Alarm_Status == 0)
-	           sprintf(Str2, "      Off       ");
-	       else if(Alarm_Status == 1)
-	           sprintf(Str2, "       On       ");
-	       else if(Alarm_Status == 2)
-	           sprintf(Str2, "     Snooze     ");
-
-	       //If the alarm is on
-	       if(Alarm_Status == 1)
-	       {
-	           if(Clock_Time == Alarm_Time)                             //If the alarm and clock times are in AM or PM
-	           {
-	               Clk_Time = (Clk_Hour * 60) + Clk_Min;
-	               Ala_Time = (Alr_Hour * 60) + Alr_Min;
-	               Light_Time = Ala_Time - Clk_Time;
-
-	               if(Light_Time < 0)
-                       Light_Time = 6;
-               }
-	           else if(Clock_Time != Alarm_Time)                        //If the alarm and clock time differ (AM and PM)
-	           {
-	               Clk_Time = Clk_Min;
-	               Ala_Time = 60 + Alr_Min;
-	               Light_Time = Ala_Time - Clk_Time;
-
-	               if(Light_Time < 0)
-	                   Light_Time = 6;
-	           }
-
-	           /*if(Light_Time == 6)
-	               SetupTimer32ForAlarm();
-	           if(AlarmGoingOff == 1)
-               {
-                   TIMER_A0 -> CCR[3] = time_on;
-                   TIMER_A0 -> CCR[4] = time_on;
-               }*/
-
-	           if((Light_Time < 4) && (Light_Time>= 0))                                     //If the clock is within five minutes of the alarm
-	           {
-	               counter++;
-	               if(counter == 3)
-	               {
-	                   Brightness++;
-	                   time_on = (Brightness /100.0) * 18750.0;
-	                   TIMER_A0 -> CCR[3]  = time_on;
-	                   TIMER_A0 -> CCR[4]  = time_on;
-	                   counter = 0;
-	               }
-	           }
-
-	           else if((Alr_Min == Clk_Min) && (Alr_Hour == Clk_Hour))      //If the alarm time is equal to the clock time
-	           {
-	               AlarmGoingOff = 1;
-	               Light_Time = 6;
-	               TIMER_A0 -> CCR[3]  = time_on;
-	               TIMER_A0 -> CCR[4]  = time_on;
-	               SetupTimer32ForAlarm();
-	           }
-	       }
-
-	       //Print alarm time
-	       if(Alr_Min < 10)
-	           Alr_Min09 = Alr_Min;
-	       if((Alr_Min>9) && (Alr_Hour>9))
-	           sprintf(Str3, "    %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
-	       else if((Alr_Min>9) && (Alr_Hour<10))
-	           sprintf(Str3, "     %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
-	       else if((Alr_Min<10) && (Alr_Hour>9))
-	           sprintf(Str3, "    %d:0%d %cM    ", Alr_Hour, Alr_Min09, Alarm_Time);
-	       else if((Alr_Min<10) && (Alr_Hour<10))
-	           sprintf(Str3, "     %d:0%d %cM    ", Alr_Hour, Alr_Min09, Alarm_Time);
-
-	       //Printing to LCD
-	       ComWrite(0x02);                  //Home cursor
-	       PrintString(Str1);               //Print first string
-	       delay_micro(100);
-	       ComWrite(0xC0);                  //Moves cursor to second line on LCD
-	       PrintString(Str2);               //Print second string
-	       delay_micro(100);
-	       ComWrite(0x90);                  //Moves cursor to third line on LCD
-	       PrintString(Str3);               //Print third string
-	       delay_micro(100);
-	       ComWrite(0xD0);                  //Move cursor to fourth line on LCD
-	       for(i=0;i<5;i++)
-	       {
-	           ComWrite(0x14);              //Shift cursor one space to the right five times
-	       }
-	       PrintStringWithLength(Str4, b);  //Print temperature string
-	       delay_micro(100);
-	       DataWrite(0xDF);                 //Print degree symbol
-	       delay_micro(100);
-	       DataWrite('F');                  //Print units
 	    }
 	}
 }
@@ -309,45 +450,71 @@ void PORT2_IRQHandler(void)
         while (!(P2->IN & BIT4)) {}
         __disable_interrupt();
 
-        //turn off song
-        //turn off lights
-
-        //set new alarm for 10 minutes
-        Alr_Min = Alr_Min + 10;
-
-        if(Alr_Min > 59)
+        if((AlarmGoingOff == 0) && (Light_Time <= 5))
         {
-            Alr_Min = Alr_Min - 60;
-            Alr_Hour++;
+            //turn off song
+            //turn off lights
+            TIMER_A0 -> CCR[3]  = time_on;
+            TIMER_A0 -> CCR[4]  = time_on;
+
+            //set new alarm for 10 minutes
+            Alr_Min = Alr_Min + 10;
+
+            if(Alr_Min > 59)
+            {
+                Alr_Min = Alr_Min - 60;
+                Alr_Hour++;
+            }
+
+            if(Alr_Hour == 13)
+                Alr_Hour = 1;
+
+            if((Alr_Hour == 12) && (Alr_Min < 11))
+            {
+                if(Alarm_Time == 'A')
+                    Alarm_Time = 'P';
+                else if(Alarm_Time == 'P')
+                    Alarm_Time = 'A';
+            }
+
+            //Change status of alarm on LCD to "Snooze"
+            Alarm_Status = 2;
+            sprintf(Str2, "     Snooze     ");
+
+            //Change the alarm time by 10 minutes on LCD
+            if(Alr_Min < 10)
+                Alr_Min09 = Alr_Min;
+            if((Alr_Min>9) && (Alr_Hour>9))
+                sprintf(Str3, "    %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
+            else if((Alr_Min>9) && (Alr_Hour<10))
+                sprintf(Str3, "     %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
+            else if((Alr_Min<10) && (Alr_Hour>9))
+                sprintf(Str3, "    %d:0%d %cM    ", Alr_Hour, Alr_Min09, Alarm_Time);
+            else if((Alr_Min<10) && (Alr_Hour<10))
+                sprintf(Str3, "     %d:0%d %cM   ", Alr_Hour, Alr_Min09, Alarm_Time);
         }
-
-        if(Alr_Hour == 13)
-            Alr_Hour = 1;
-
-        if((Alr_Hour == 12) && (Alr_Min < 11))
+        else
         {
-            if(Alarm_Time == 'A')
-                Alarm_Time = 'P';
-            else if(Alarm_Time == 'P')
-                Alarm_Time = 'A';
+            sprintf(Str2, "    No Alarm    ");
+
+            //print lines 2 and 3
+            ComWrite(0xC0);                  //Moves cursor to second line on LCD
+            PrintString(Str2);               //Print second string
+            delay_milli(1500);
+
+            //Print alarm status
+            if(Alarm_Status == 0)
+                sprintf(Str2, "      Off       ");
+            else if(Alarm_Status == 1)
+                sprintf(Str2, "       On       ");
+            else if(Alarm_Status == 2)
+                sprintf(Str2, "     Snooze     ");
+
+            //print lines 2 an 3
+            ComWrite(0xC0);                  //Moves cursor to second line on LCD
+            PrintString(Str2);               //Print second string
+            delay_micro(100);
         }
-
-        //Change status of alarm on LCD to "Snooze"
-        Alarm_Status = 2;
-        sprintf(Str2, "     Snooze     ");
-
-        //Change the alarm time by 10 minutes on LCD
-        if(Alr_Min < 10)
-            Alr_Min09 = Alr_Min;
-        if((Alr_Min>9) && (Alr_Hour>9))
-            sprintf(Str3, "    %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
-        else if((Alr_Min>9) && (Alr_Hour<10))
-            sprintf(Str3, "     %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
-        else if((Alr_Min<10) && (Alr_Hour>9))
-            sprintf(Str3, "    %d:0%d %cM    ", Alr_Hour, Alr_Min09, Alarm_Time);
-        else if((Alr_Min<10) && (Alr_Hour<10))
-            sprintf(Str3, "     %d:0%d %cM   ", Alr_Hour, Alr_Min09, Alarm_Time);
-
         __enable_interrupt();
     }
     P2 -> IFG  &=~ (BIT4);
@@ -453,7 +620,7 @@ void PORT5_IRQHandler(void)
 
             ComWrite(0x02);                  //Moves cursor to first line on LCD
             PrintString(Str1);               //Print third string
-            delay_milli(1000);
+            delay_milli(500);
 
             if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour<10))
                 sprintf(Str1, "    :0%d:0%d %cM   ", Clk_Min09, Clk_Sec, Clock_Time);
@@ -474,17 +641,18 @@ void PORT5_IRQHandler(void)
 
             ComWrite(0x02);                  //Moves cursor to first line on LCD
             PrintString(Str1);               //Print third string
-            delay_milli(1000);
+            delay_milli(500);
 
             //user presses "on/off/up" button to increment hours
             if(P2->IFG & BIT5)
             {
+                previous = Clk_Hour;
                 Clk_Hour++;
                 //when hours reaches 12 am/pm, go to 1 pm/am
                 if(Clk_Hour == 13)
                     Clk_Hour = 1;
 
-                if((Clk_Hour == 12) && (Clk_Min < 11))
+                if((Clk_Hour == 12) && (previous == 11))
                 {
                     if(Clock_Time == 'A')
                         Clock_Time = 'P';
@@ -498,12 +666,13 @@ void PORT5_IRQHandler(void)
             //user presses "snooze/down" button to decrement hours
             if(P2->IFG & BIT4)
             {
+                previous = Clk_Hour;
                 Clk_Hour--;
                 //when hours reaches 1 am/pm, go to 12 pm/am
                 if(Clk_Hour == 0)
                     Clk_Hour = 12;
 
-                if((Clk_Hour == 12) && (Clk_Min < 11))
+                if((Clk_Hour == 11) && (previous == 12))
                 {
                     if(Clock_Time == 'A')
                         Clock_Time = 'P';
@@ -514,10 +683,14 @@ void PORT5_IRQHandler(void)
             }
 
             if(!(P5->IN & BIT7))
+            {
+               // while (!((P5->IN & BIT7) == BIT7)) {}
                 settime = 1;
+            }
         }
 
         //user presses set-alarm button to go to minutes
+        //if(settime == 1)
         if(!(P5->IN & BIT7))
         {
             settime = 0;
@@ -546,7 +719,7 @@ void PORT5_IRQHandler(void)
 
                 ComWrite(0x02);                  //Moves cursor to first line on LCD
                 PrintString(Str1);               //Print third string
-                delay_milli(1000);
+                delay_milli(500);
 
                 if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour<10))
                     sprintf(Str1, "   %d:  :0%d %cM   " , Clk_Hour, Clk_Sec, Clock_Time);
@@ -567,7 +740,7 @@ void PORT5_IRQHandler(void)
 
                 ComWrite(0x02);                  //Moves cursor to first line on LCD
                 PrintString(Str1);               //Print third string
-                delay_milli(1000);
+                delay_milli(500);
 
                 //user presses "on/off/up" button to increment minutes
                 if(P2->IFG & BIT5)
@@ -596,7 +769,8 @@ void PORT5_IRQHandler(void)
             }
 
             //user presses set-alarm button again
-            if(!(P5->IN & BIT7))
+            if(settime == 1)
+            //if(!(P5->IN & BIT7))
             {
                 settime = 0;
                 //flashing stops and time is now set
@@ -638,6 +812,7 @@ void PORT5_IRQHandler(void)
         settime = 0;
         __disable_interrupt();
         //flash hours
+        //blink at certain spot until "set time" is pressed again
         while(settime != 1)
         {
             if(Alr_Min < 10)
@@ -653,7 +828,7 @@ void PORT5_IRQHandler(void)
 
             ComWrite(0x90);                  //Moves cursor to third line on LCD
             PrintString(Str3);               //Print third string
-            delay_milli(1000);
+            delay_milli(500);
 
             if((Alr_Min>9) && (Alr_Hour>9))
                 sprintf(Str3, "      :%d %cM    ", Alr_Min, Alarm_Time);
@@ -666,43 +841,47 @@ void PORT5_IRQHandler(void)
 
             ComWrite(0x90);                  //Moves cursor to third line on LCD
             PrintString(Str3);               //Print third string
-            delay_milli(1000);
+            delay_milli(500);
 
             //user presses "on/off/up" button to increment hours
             if(P2->IFG & BIT5)
             {
+                previous = Alr_Hour;
                 Alr_Hour++;
                 //when hours reaches 12 am/pm, go to 1 pm/am
                 if(Alr_Hour == 13)
                     Alr_Hour = 1;
 
-                if((Alr_Hour == 12) && (Alr_Min < 11))
+                if((Alr_Hour == 12) && (previous == 11))
                 {
                     if(Alarm_Time == 'A')
                         Alarm_Time = 'P';
                     else if(Alarm_Time == 'P')
                         Alarm_Time = 'A';
                 }
+                P2 -> IFG &=~ BIT5;
             }
 
             //user presses "snooze/down" button to decrement hours
             if(P2->IFG & BIT4)
             {
+                previous = Alr_Hour;
                 Alr_Hour--;
                 //when hours reaches 1 am/pm, go to 12 pm/am
                 if(Alr_Hour == 0)
                     Alr_Hour = 12;
 
-                if((Alr_Hour == 12) && (Alr_Min < 11))
+                if((Alr_Hour == 11) && (previous == 12))
                 {
                     if(Alarm_Time == 'A')
                         Alarm_Time = 'P';
                     else if(Alarm_Time == 'P')
                         Alarm_Time = 'A';
                 }
+                P2 -> IFG &=~ BIT4;
             }
 
-            if(!(P5->IN & BIT7))
+            if(!(P5->IN & BIT0))
                 settime = 1;
         }
 
@@ -726,7 +905,7 @@ void PORT5_IRQHandler(void)
 
                 ComWrite(0x90);                  //Moves cursor to third line on LCD
                 PrintString(Str3);               //Print third string
-                delay_milli(1000);
+                delay_milli(500);
 
                 if(Alr_Min < 10)
                     Alr_Min09 = Alr_Min;
@@ -741,7 +920,7 @@ void PORT5_IRQHandler(void)
 
                 ComWrite(0x90);                  //Moves cursor to third line on LCD
                 PrintString(Str3);               //Print third string
-                delay_milli(1000);
+                delay_milli(500);
 
                 //user presses "on/off/up" button to increment minutes
                 if(P2->IFG & BIT5)
@@ -750,7 +929,10 @@ void PORT5_IRQHandler(void)
                     //when minutes reaches 60, go to 0 and increment hour
                     if(Alr_Min == 60)
                         Alr_Min = 0;
+
+                    P2 -> IFG &=~ BIT5;
                 }
+
                 //user presses "snooze/down" button to decrement minutes
                 if(P2->IFG & BIT4)
                 {
@@ -758,15 +940,18 @@ void PORT5_IRQHandler(void)
                     //when minutes reaches -1, go to 69 and increment hour
                     if(Alr_Min == -1)
                         Alr_Min = 59;
+
+                    P2 -> IFG &=~ BIT4;
                 }
 
-                if(!(P5->IN & BIT7))
+                if(!(P5->IN & BIT0))
                     settime = 1;
             }
 
             //user presses set-alarm button again
-            if(!(P5->IN & BIT0))
+            if(settime == 1)
             {
+                settime = 0;
                 //flashing stops and time is now set
                 if(Alr_Min < 10)
                     Alr_Min09 = Alr_Min;
@@ -789,6 +974,15 @@ void PORT5_IRQHandler(void)
         }
     }
     __enable_interrupt();
+}
+
+void InitHiddenButtons()
+{
+    P1->SEL0 &=~ (BIT1|BIT4);
+    P1->SEL1 &=~ (BIT1|BIT4);
+    P1->DIR  &=~ (BIT1|BIT4);
+    P1->REN  |=  (BIT1|BIT4);
+    P1->OUT  |=  (BIT1|BIT4);
 }
 
 void InitInterrupts()
@@ -866,7 +1060,6 @@ void T32_INT2_IRQHandler()
 {
     if(AlarmGoingOff == 1)
     {
-        AlarmGoingOff = 0;
         TIMER_A0 -> CCR[3] = 0;
         TIMER_A0 -> CCR[4] = 0;
 
@@ -879,26 +1072,26 @@ void T32_INT2_IRQHandler()
             breath = 0;                                                     //Next Timer32 interrupt is no longer a breath, but is a note
         }
         else {                                                              //If not a breath (a note)
-            TIMER32_2->LOAD = music_note_sequence_Alarm[note][1] - 1;       //Load into interrupt count down the length of this note
-            if(music_note_sequence_Alarm[note][0] == REST) {                //If note is actually a rest, load in nothing to TimerA
+            TIMER32_2->LOAD = music_note_sequence_A[note][1] - 1;       //Load into interrupt count down the length of this note
+            if(music_note_sequence_A[note][0] == REST) {                //If note is actually a rest, load in nothing to TimerA
                 TIMER_A2->CCR[0] = 0;
                 TIMER_A2->CCR[1] = 0;
                 TIMER_A2->CCR[2] = 0;
             }
             else {
-                TIMER_A2->CCR[0] = 3000000 / music_note_sequence_Alarm[note][0];  //Math in an interrupt is bad behavior, but shows how things are happening.  This takes our clock and divides by the frequency of this note to get the period.
-                TIMER_A2->CCR[1] = 1500000 / music_note_sequence_Alarm[note][0];  //50% duty cycle
-                TIMER_A2->CCR[2] = TIMER_A0->CCR[0];                              //Had this in here for fun with interrupts.  Not used right now
+                TIMER_A2->CCR[0] = 3000000 / music_note_sequence_A[note][0];  //Math in an interrupt is bad behavior, but shows how things are happening.  This takes our clock and divides by the frequency of this note to get the period.
+                TIMER_A2->CCR[1] = 1500000 / music_note_sequence_A[note][0];  //50% duty cycle
+                TIMER_A2->CCR[2] = TIMER_A0->CCR[0];                          //Had this in here for fun with interrupts.  Not used right now
             }
-            note = note + 1;                                                      //Next note
-            if(note >= MAX_NOTE_A) {                                              //Go back to the beginning if at the end
+            note = note + 1;                                                  //Next note
+            if(note >= MAX_NOTE_A) {                                          //Go back to the beginning if at the end
                 note = 0;
             }
-            breath = 1;                                                           //Next time through should be a breath for separation.
+            breath = 1;                                                       //Next time through should be a breath for separation.
         }
     }
 
-    else if(Light_Time == 6)
+    else if(AlarmGoingOff == 0)
     {
         TIMER32_2->INTCLR = 1;                                              //Clear interrupt flag so it does not interrupt again immediately.
         if(breath) {                                                        //Provides separation between notes
