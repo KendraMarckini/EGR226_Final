@@ -98,6 +98,12 @@ int Speed = 1;
 static char Clock_Time = 'A';
 static char Alarm_Time = 'A';
 
+#define BUFFER_SIZE 100
+char string[BUFFER_SIZE];
+char INPUT_BUFFER[BUFFER_SIZE];
+uint8_t storage_location = 0;
+uint8_t read_location = 0;
+
 //Prototypes
 void Init_ADC14(void);
 void InitHiddenButtons();
@@ -107,6 +113,9 @@ void CurrentDisplay();
 void InitInterrupts();
 void TimerALED();
 void TimerALEDInit();
+void writeOutput(char *string);
+void readInput(char* string);
+void setupSerial();
 
 void main(void)
 {
@@ -120,12 +129,15 @@ void main(void)
 	TimerALEDInit();
 	Init_ADC14();
 	TimerALEDInit();
+    setupSerial();
 
     //Temp
     char Str4[] = "";
     int b = 0, i = 0;
     float nADC = 0, Temp_F = 0, Temp_C = 0;
     static volatile uint16_t result;
+    INPUT_BUFFER[0]= '\0';
+
 
 	__enable_interrupt();
 	SetUpTimer32ForCounter();
@@ -178,22 +190,20 @@ void main(void)
 	            }
 
 	            //Prints clock time
-	            if(Clk_Min < 10)
-	                Clk_Min09 = Clk_Min;
 	            if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour<10))
-	                sprintf(Str1, "   %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
+	                sprintf(Str1, "   %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 	            else if((Clk_Sec>9) && (Clk_Min>9) && (Clk_Hour<10))
 	                sprintf(Str1, "   %d:%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 	            else if((Clk_Sec>9) && (Clk_Min<10) && (Clk_Hour<10))
-	                sprintf(Str1, "   %d:0%d:%d %cM   ", Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
+	                sprintf(Str1, "   %d:0%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 	            else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour<10))
 	                sprintf(Str1, "   %d:%d:0%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 	            else if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour>9))
-	                sprintf(Str1, "  %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
+	                sprintf(Str1, "  %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 	            else if((Clk_Sec>9) && (Clk_Min>9) && (Clk_Hour>9))
 	                sprintf(Str1, "  %d:%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 	            else if((Clk_Sec>9) && (Clk_Min<10) && (Clk_Hour>9))
-	                sprintf(Str1, "  %d:0%d:%d %cM   ", Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
+	                sprintf(Str1, "  %d:0%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 	            else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour>9))
 	                sprintf(Str1, "  %d:%d:0%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 
@@ -206,7 +216,7 @@ void main(void)
 	                sprintf(Str2, "     Snooze     ");
 
 	            //If the alarm is on
-	            if(Alarm_Status == 1)
+	            if((Alarm_Status == 1) | (Alarm_Status == 2))
 	            {
 	                if(Clock_Time == Alarm_Time)                             //If the alarm and clock times are in AM or PM
 	                {
@@ -235,7 +245,6 @@ void main(void)
                         SetupTimer32ForAlarm();
                     }
 
-
 	                if((Light_Time <= 5) && (Light_Time>= 0))                                     //If the clock is within five minutes of the alarm
 	                {
 	                    counter++;
@@ -257,16 +266,14 @@ void main(void)
 	            }
 
 	            //Print alarm time
-	            if(Alr_Min < 10)
-	                Alr_Min09 = Alr_Min;
 	            if((Alr_Min>9) && (Alr_Hour>9))
 	                sprintf(Str3, "    %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
 	            else if((Alr_Min>9) && (Alr_Hour<10))
 	                sprintf(Str3, "     %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
 	            else if((Alr_Min<10) && (Alr_Hour>9))
-	                sprintf(Str3, "    %d:0%d %cM    ", Alr_Hour, Alr_Min09, Alarm_Time);
+	                sprintf(Str3, "    %d:0%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
 	            else if((Alr_Min<10) && (Alr_Hour<10))
-	                sprintf(Str3, "     %d:0%d %cM    ", Alr_Hour, Alr_Min09, Alarm_Time);
+	                sprintf(Str3, "     %d:0%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
 
 	            //Printing to LCD
 	            ComWrite(0x02);                  //Home cursor
@@ -288,6 +295,157 @@ void main(void)
 	            DataWrite(0xDF);                 //Print degree symbol
 	            delay_micro(100);
 	            DataWrite('F');                  //Print units
+
+	            //Read the input up to "\n" and store in string
+	            readInput(string);
+	            //If statement will continue to run until it reaches the end
+	            if(string[0] != '\0')
+	            {
+	                if(string[0] == 'S')
+	                {
+	                    if(string[3] == 'T')
+	                    {
+	                        Clk_Hour = atoi(&string[9]);
+	                        Clk_Min  = atoi(&string[12]);
+	                        Clk_Sec  = atoi(&string[15]);
+
+	                        if((Clk_Hour >= 12) && (Clk_Hour <= 23))
+	                        {
+	                            Clock_Time = 'P';
+	                            Clk_Hour = Clk_Hour - 12;
+	                        }
+	                        else if((Clk_Hour < 12) && (Clk_Hour >= 0))
+	                        {
+	                            Clock_Time = 'A';
+	                            if (Clk_Hour == 0)
+	                                Clk_Hour = 12;
+	                        }
+
+	                        //Prints clock time
+	                        if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour<10))
+	                            sprintf(Str1, "   %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	                        else if((Clk_Sec>9) && (Clk_Min>9) && (Clk_Hour<10))
+	                            sprintf(Str1, "   %d:%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	                        else if((Clk_Sec>9) && (Clk_Min<10) && (Clk_Hour<10))
+	                            sprintf(Str1, "   %d:0%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	                        else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour<10))
+	                            sprintf(Str1, "   %d:%d:0%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	                        else if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour>9))
+	                            sprintf(Str1, "  %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	                        else if((Clk_Sec>9) && (Clk_Min>9) && (Clk_Hour>9))
+	                            sprintf(Str1, "  %d:%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	                        else if((Clk_Sec>9) && (Clk_Min<10) && (Clk_Hour>9))
+	                            sprintf(Str1, "  %d:0%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	                        else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour>9))
+	                            sprintf(Str1, "  %d:%d:0%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	                        //Printing to LCD
+	                        ComWrite(0x02);                  //Home cursor
+	                        PrintString(Str1);               //Print first string
+	                        delay_micro(100);
+	                    }
+
+	                    else if(string[3] == 'A')
+	                    {
+	                        Alr_Hour = atoi(&string[9]);
+	                        Alr_Min  = atoi(&string[12]);
+
+	                        if((Alr_Hour >= 12) && (Alr_Hour <= 23))
+	                        {
+	                            Alarm_Time = 'P';
+	                            Alr_Hour = Clk_Hour - 12;
+	                        }
+	                        else if((Alr_Hour < 12) && (Alr_Hour >= 0))
+	                        {
+	                            Alarm_Time = 'A';
+	                            if (Alr_Hour == 0)
+	                                Alr_Hour = 12;
+	                        }
+
+	                        //Print alarm time
+	                        if((Alr_Min>9) && (Alr_Hour>9))
+	                            sprintf(Str3, "    %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
+	                        else if((Alr_Min>9) && (Alr_Hour<10))
+	                            sprintf(Str3, "     %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
+	                        else if((Alr_Min<10) && (Alr_Hour>9))
+	                            sprintf(Str3, "    %d:0%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
+	                        else if((Alr_Min<10) && (Alr_Hour<10))
+	                            sprintf(Str3, "     %d:0%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
+	                        ComWrite(0x90);                  //Moves cursor to third line on LCD
+	                        PrintString(Str3);               //Print third string
+	                        delay_micro(100);
+	                    }
+	                    else
+	                    {
+	                        //Series of output statements that let user know the input was not valid
+	                        //because the duty cycle was too large and prints the string
+	                        writeOutput("Invalid ");
+	                        writeOutput(string);
+	                        writeOutput("\n\n");
+	                    }
+	                }
+	                //Checks if the first character in the string is a G
+	                else if(string[0] == 'R')
+	                {
+	                    if(string[4] == 'T')
+	                    {
+	                        if(Clock_Time == 'P')
+	                            Clk_Hour = Clk_Hour + 12;
+	                        if((Clk_Hour == 12) && (Clock_Time == 'A'))
+	                            Clk_Hour = 0;
+
+	                        if((Clk_Hour < 10) && (Clk_Min < 10) && (Clk_Sec < 10))
+	                            sprintf(Str1, "0%d:0%d:0%d\n" , Clk_Hour, Clk_Min, Clk_Sec);
+	                        if((Clk_Hour >= 10) && (Clk_Min < 10) && (Clk_Sec < 10))
+	                            sprintf(Str1, "%d:0%d:0%d\n" , Clk_Hour, Clk_Min, Clk_Sec);
+	                        if((Clk_Hour < 10) && (Clk_Min >= 10) && (Clk_Sec < 10))
+	                            sprintf(Str1, "0%d:%d:0%d\n" , Clk_Hour, Clk_Min, Clk_Sec);
+	                        if((Clk_Hour >= 10) && (Clk_Min >= 10) && (Clk_Sec < 10))
+	                            sprintf(Str1, "%d:%d:0%d\n" , Clk_Hour, Clk_Min, Clk_Sec);
+	                        if((Clk_Hour < 10) && (Clk_Min < 10) && (Clk_Sec >= 10))
+	                            sprintf(Str1, "0%d:0%d:%d\n" , Clk_Hour, Clk_Min, Clk_Sec);
+	                        if((Clk_Hour >= 10) && (Clk_Min < 10) && (Clk_Sec >= 10))
+	                            sprintf(Str1, "%d:0%d:%d\n" , Clk_Hour, Clk_Min, Clk_Sec);
+	                        if((Clk_Hour < 10) && (Clk_Min >= 10) && (Clk_Sec >= 10))
+	                            sprintf(Str1, "0%d:%d:%d\n" , Clk_Hour, Clk_Min, Clk_Sec);
+	                        if((Clk_Hour >= 10) && (Clk_Min >= 10) && (Clk_Sec >= 10))
+	                            sprintf(Str1, "%d:%d:%d\n" , Clk_Hour, Clk_Min, Clk_Sec);
+	                        writeOutput(Str1);
+	                    }
+	                    else if(string[4] == 'A')
+	                    {
+	                        if(Alarm_Time == 'P')
+	                            Alr_Hour = Alr_Hour + 12;
+	                        if((Alr_Hour == 12) && (Alarm_Time == 'A'))
+	                            Alr_Hour = 0;
+
+	                        if((Alr_Hour < 10) && (Alr_Min < 10))
+	                            sprintf(Str3, "0%d:0%d\n" , Alr_Hour, Alr_Min);
+	                        if((Alr_Hour >= 10) && (Alr_Min < 10))
+	                            sprintf(Str3, "%d:0%d\n" , Alr_Hour, Alr_Min);
+	                        if((Alr_Hour < 10) && (Alr_Min >= 10))
+	                            sprintf(Str3, "0%d:%d\n" , Alr_Hour, Alr_Min);
+	                        if((Alr_Hour >= 10) && (Alr_Min >= 10))
+	                            sprintf(Str3, "%d:%d\n" , Alr_Hour, Alr_Min);
+	                        writeOutput(Str3);
+	                    }
+	                    else
+	                    {
+	                        //Series of output statements that let user know the input was not valid
+	                        //because the duty cycle was too large and prints the string
+	                        writeOutput("Invalid ");
+	                        writeOutput(string);
+	                        writeOutput("\n\n");
+	                    }
+	                }
+	                else
+	                {
+	                    //Series of output statements that let user know the input was not valid
+	                    //because the duty cycle was too large and prints the string
+	                    writeOutput("Invalid ");
+	                    writeOutput(string);
+	                    writeOutput("\n\n");
+	                }
+	            }
 	        }
 
 	        //Fast
@@ -311,22 +469,20 @@ void main(void)
 	            }
 
 	            //Prints clock time
-	            if(Clk_Min < 10)
-	                Clk_Min09 = Clk_Min;
 	            if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour<10))
-	                sprintf(Str1, "   %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
+	                sprintf(Str1, "   %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 	            else if((Clk_Sec>9) && (Clk_Min>9) && (Clk_Hour<10))
 	                sprintf(Str1, "   %d:%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 	            else if((Clk_Sec>9) && (Clk_Min<10) && (Clk_Hour<10))
-	                sprintf(Str1, "   %d:0%d:%d %cM   ", Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
+	                sprintf(Str1, "   %d:0%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 	            else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour<10))
 	                sprintf(Str1, "   %d:%d:0%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 	            else if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour>9))
-	                sprintf(Str1, "  %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
+	                sprintf(Str1, "  %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 	            else if((Clk_Sec>9) && (Clk_Min>9) && (Clk_Hour>9))
 	                sprintf(Str1, "  %d:%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 	            else if((Clk_Sec>9) && (Clk_Min<10) && (Clk_Hour>9))
-	                sprintf(Str1, "  %d:0%d:%d %cM   ", Clk_Hour, Clk_Min09, Clk_Sec, Clock_Time);
+	                sprintf(Str1, "  %d:0%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 	            else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour>9))
 	                sprintf(Str1, "  %d:%d:0%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
 
@@ -339,7 +495,7 @@ void main(void)
 	                sprintf(Str2, "     Snooze     ");
 
 	            //If the alarm is on
-	            if(Alarm_Status == 1)
+	            if((Alarm_Status == 1) | (Alarm_Status == 2))
 	            {
 	                if(Clock_Time == Alarm_Time)                             //If the alarm and clock times are in AM or PM
 	                {
@@ -384,16 +540,14 @@ void main(void)
 	            }
 
 	            //Print alarm time
-	            if(Alr_Min < 10)
-	                Alr_Min09 = Alr_Min;
 	            if((Alr_Min>9) && (Alr_Hour>9))
 	                sprintf(Str3, "    %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
 	            else if((Alr_Min>9) && (Alr_Hour<10))
 	                sprintf(Str3, "     %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
 	            else if((Alr_Min<10) && (Alr_Hour>9))
-	                sprintf(Str3, "    %d:0%d %cM    ", Alr_Hour, Alr_Min09, Alarm_Time);
+	                sprintf(Str3, "    %d:0%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
 	            else if((Alr_Min<10) && (Alr_Hour<10))
-	                sprintf(Str3, "     %d:0%d %cM    ", Alr_Hour, Alr_Min09, Alarm_Time);
+	                sprintf(Str3, "     %d:0%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
 
 	            //Printing to LCD
 	            ComWrite(0x02);                  //Home cursor
@@ -415,6 +569,157 @@ void main(void)
 	            DataWrite(0xDF);                 //Print degree symbol
 	            delay_micro(100);
 	            DataWrite('F');                  //Print units
+
+	            //Read the input up to "\n" and store in string
+	            readInput(string);
+	            //If statement will continue to run until it reaches the end
+	            if(string[0] != '\0')
+	            {
+	                if(string[0] == 'S')
+	                {
+	                    if(string[3] == 'T')
+	                    {
+	                        Clk_Hour = atoi(&string[9]);
+	                        Clk_Min  = atoi(&string[12]);
+	                        Clk_Sec  = atoi(&string[15]);
+
+	                        if((Clk_Hour >= 12) && (Clk_Hour <= 23))
+	                        {
+	                            Clock_Time = 'P';
+	                            Clk_Hour = Clk_Hour - 12;
+	                        }
+	                        else if((Clk_Hour < 12) && (Clk_Hour >= 0))
+	                        {
+	                            Clock_Time = 'A';
+	                            if (Clk_Hour == 0)
+	                                Clk_Hour = 12;
+	                        }
+
+	                        //Prints clock time
+	                        if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour<10))
+	                            sprintf(Str1, "   %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	                        else if((Clk_Sec>9) && (Clk_Min>9) && (Clk_Hour<10))
+	                            sprintf(Str1, "   %d:%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	                        else if((Clk_Sec>9) && (Clk_Min<10) && (Clk_Hour<10))
+	                            sprintf(Str1, "   %d:0%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	                        else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour<10))
+	                            sprintf(Str1, "   %d:%d:0%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	                        else if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour>9))
+	                            sprintf(Str1, "  %d:0%d:0%d %cM   " , Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	                        else if((Clk_Sec>9) && (Clk_Min>9) && (Clk_Hour>9))
+	                            sprintf(Str1, "  %d:%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	                        else if((Clk_Sec>9) && (Clk_Min<10) && (Clk_Hour>9))
+	                            sprintf(Str1, "  %d:0%d:%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	                        else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour>9))
+	                            sprintf(Str1, "  %d:%d:0%d %cM   ", Clk_Hour, Clk_Min, Clk_Sec, Clock_Time);
+	                        //Printing to LCD
+	                        ComWrite(0x02);                  //Home cursor
+	                        PrintString(Str1);               //Print first string
+	                        delay_micro(100);
+	                    }
+
+	                    else if(string[3] == 'A')
+	                    {
+	                        Alr_Hour = atoi(&string[9]);
+	                        Alr_Min  = atoi(&string[12]);
+
+	                        if((Alr_Hour >= 12) && (Alr_Hour <= 23))
+	                        {
+	                            Alarm_Time = 'P';
+	                            Alr_Hour = Clk_Hour - 12;
+	                        }
+	                        else if((Alr_Hour < 12) && (Alr_Hour >= 0))
+	                        {
+	                            Alarm_Time = 'A';
+	                            if (Alr_Hour == 0)
+	                                Alr_Hour = 12;
+	                        }
+
+	                        //Print alarm time
+	                        if((Alr_Min>9) && (Alr_Hour>9))
+	                            sprintf(Str3, "    %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
+	                        else if((Alr_Min>9) && (Alr_Hour<10))
+	                            sprintf(Str3, "     %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
+	                        else if((Alr_Min<10) && (Alr_Hour>9))
+	                            sprintf(Str3, "    %d:0%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
+	                        else if((Alr_Min<10) && (Alr_Hour<10))
+	                            sprintf(Str3, "     %d:0%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
+	                        ComWrite(0x90);                  //Moves cursor to third line on LCD
+	                        PrintString(Str3);               //Print third string
+	                        delay_micro(100);
+	                    }
+	                    else
+	                    {
+	                        //Series of output statements that let user know the input was not valid
+	                        //because the duty cycle was too large and prints the string
+	                        writeOutput("Invalid ");
+	                        writeOutput(string);
+	                        writeOutput("\n\n");
+	                    }
+	                }
+	                //Checks if the first character in the string is a G
+	                else if(string[0] == 'R')
+	                {
+	                    if(string[4] == 'T')
+	                    {
+	                        if(Clock_Time == 'P')
+	                            Clk_Hour = Clk_Hour + 12;
+	                        if((Clk_Hour == 12) && (Clock_Time == 'A'))
+	                            Clk_Hour = 0;
+
+	                        if((Clk_Hour < 10) && (Clk_Min < 10) && (Clk_Sec < 10))
+	                            sprintf(Str1, "0%d:0%d:0%d\n" , Clk_Hour, Clk_Min, Clk_Sec);
+	                        if((Clk_Hour >= 10) && (Clk_Min < 10) && (Clk_Sec < 10))
+	                            sprintf(Str1, "%d:0%d:0%d\n" , Clk_Hour, Clk_Min, Clk_Sec);
+	                        if((Clk_Hour < 10) && (Clk_Min >= 10) && (Clk_Sec < 10))
+	                            sprintf(Str1, "0%d:%d:0%d\n" , Clk_Hour, Clk_Min, Clk_Sec);
+	                        if((Clk_Hour >= 10) && (Clk_Min >= 10) && (Clk_Sec < 10))
+	                            sprintf(Str1, "%d:%d:0%d\n" , Clk_Hour, Clk_Min, Clk_Sec);
+	                        if((Clk_Hour < 10) && (Clk_Min < 10) && (Clk_Sec >= 10))
+	                            sprintf(Str1, "0%d:0%d:%d\n" , Clk_Hour, Clk_Min, Clk_Sec);
+	                        if((Clk_Hour >= 10) && (Clk_Min < 10) && (Clk_Sec >= 10))
+	                            sprintf(Str1, "%d:0%d:%d\n" , Clk_Hour, Clk_Min, Clk_Sec);
+	                        if((Clk_Hour < 10) && (Clk_Min >= 10) && (Clk_Sec >= 10))
+	                            sprintf(Str1, "0%d:%d:%d\n" , Clk_Hour, Clk_Min, Clk_Sec);
+	                        if((Clk_Hour >= 10) && (Clk_Min >= 10) && (Clk_Sec >= 10))
+	                            sprintf(Str1, "%d:%d:%d\n" , Clk_Hour, Clk_Min, Clk_Sec);
+	                        writeOutput(Str1);
+	                    }
+	                    else if(string[4] == 'A')
+	                    {
+	                        if(Alarm_Time == 'P')
+	                            Alr_Hour = Alr_Hour + 12;
+	                        if((Alr_Hour == 12) && (Alarm_Time == 'A'))
+	                            Alr_Hour = 0;
+
+	                        if((Alr_Hour < 10) && (Alr_Min < 10))
+	                            sprintf(Str3, "0%d:0%d\n" , Alr_Hour, Alr_Min);
+	                        if((Alr_Hour >= 10) && (Alr_Min < 10))
+	                            sprintf(Str3, "%d:0%d\n" , Alr_Hour, Alr_Min);
+	                        if((Alr_Hour < 10) && (Alr_Min >= 10))
+	                            sprintf(Str3, "0%d:%d\n" , Alr_Hour, Alr_Min);
+	                        if((Alr_Hour >= 10) && (Alr_Min >= 10))
+	                            sprintf(Str3, "%d:%d\n" , Alr_Hour, Alr_Min);
+	                        writeOutput(Str3);
+	                    }
+	                    else
+	                    {
+	                        //Series of output statements that let user know the input was not valid
+	                        //because the duty cycle was too large and prints the string
+	                        writeOutput("Invalid ");
+	                        writeOutput(string);
+	                        writeOutput("\n\n");
+	                    }
+	                }
+	                else
+	                {
+	                    //Series of output statements that let user know the input was not valid
+	                    //because the duty cycle was too large and prints the string
+	                    writeOutput("Invalid ");
+	                    writeOutput(string);
+	                    writeOutput("\n\n");
+	                }
+	            }
 	        }
 	    }
 	}
@@ -450,12 +755,22 @@ void PORT2_IRQHandler(void)
         while (!(P2->IN & BIT4)) {}
         __disable_interrupt();
 
-        if((AlarmGoingOff == 0) && (Light_Time <= 5))
+        if((AlarmGoingOff == 1) | ((Light_Time <= 5) && (Light_Time >=0)))
         {
             //turn off song
+            AlarmGoingOff = 2;
+            TIMER32_2->CONTROL = 0; //Sets timer 2 for Enabled, Periodic, With Interrupt, No Prescaler, 32 bit mode, One Shot Mode
+            TIMER32_2->LOAD = 0;    //Set to a count down of 1 second on 3 MHz clock
+
+            TIMER_A2->CCR[0] = 0;   //Turn off to start
+            TIMER_A2->CCTL[1] = 0;  //Setup Timer A0_1 Reset/Set, Interrupt, No Output
+            TIMER_A2->CCR[1] = 0;   //Turn off timerA to start
+            //TIMER_A0->CCR[2] = 0;   //Turn off timerA to start
+            TIMER_A2->CTL = 0;      //Count Up mode using SMCLK, Clears, Clear Interrupt Flag
+
             //turn off lights
-            TIMER_A0 -> CCR[3]  = time_on;
-            TIMER_A0 -> CCR[4]  = time_on;
+            TIMER_A0 -> CCR[3]  = 0;
+            TIMER_A0 -> CCR[4]  = 0;
 
             //set new alarm for 10 minutes
             Alr_Min = Alr_Min + 10;
@@ -493,7 +808,8 @@ void PORT2_IRQHandler(void)
             else if((Alr_Min<10) && (Alr_Hour<10))
                 sprintf(Str3, "     %d:0%d %cM   ", Alr_Hour, Alr_Min09, Alarm_Time);
         }
-        else
+
+        else if((AlarmGoingOff == 0) | ((Light_Time > 5) && (Light_Time < 0)))
         {
             sprintf(Str2, "    No Alarm    ");
 
@@ -1141,7 +1457,88 @@ void SetupTimer32ForAlarm()
     TIMER_A2->CCR[0] = 0;                   // Turn off to start
     TIMER_A2->CCTL[1] = 0b0000000011110100; // Setup Timer A0_1 Reset/Set, Interrupt, No Output
     TIMER_A2->CCR[1] = 0;                   // Turn off timerA to start
-    TIMER_A0->CCR[2] = 0;                   // Turn off timerA to start
+   // TIMER_A0->CCR[2] = 0;                   // Turn off timerA to start
     TIMER_A2->CTL = 0b0000001000010100;     // Count Up mode using SMCLK, Clears, Clear Interrupt Flag
     NVIC_EnableIRQ(TA0_N_IRQn);             // Enable interrupts for CCTL1-6 (if on)
+}
+
+//Function prints input string to user (via Tera Term)
+void writeOutput(char *string)
+{
+    //Determines the location in the char array "string" that is being written to
+    int i = 0;
+
+    while(string[i] != '\0') {
+        EUSCI_A0->TXBUF = string[i];
+        i++;
+        while(!(EUSCI_A0->IFG & BIT1));
+    }
+}
+
+//Functions reads the input from the user (via Tera Term)
+void readInput(char *string)
+{
+    //Determines the location in the char array "string" that is being written to
+    int i = 0;
+
+    do
+    {
+        //If a new line hasn't been found yet, but the program is caught up to what has been received,
+        //wait here for new data
+        while(read_location == storage_location && INPUT_BUFFER[read_location] != '\n');
+        //Manual copy of valid character into "string"
+        string[i] = INPUT_BUFFER[read_location];
+        INPUT_BUFFER[read_location] = '\0';
+        //Increment the location in "string" for next piece of data
+        i++;
+        //Increment location in INPUT_BUFFER that has been read
+        read_location++;
+        //If the end of INPUT_BUFFER has been reached, loop back to 0
+        if(read_location == BUFFER_SIZE)
+            read_location = 0;
+    }
+    //If a line break was just read, break out of the do-while loop
+    while(string[i-1] != '\n');
+    //Replace the \n with a \0 to end the string when returning this function
+    string[i-1] = '\0';
+}
+
+//Interrupt handler function
+void EUSCIA0_IRQHandler(void)
+{
+    //Interrupt on the receive line
+    if (EUSCI_A0->IFG & BIT0)
+    {
+        //Store the new piece of data at the present location in the buffer
+        INPUT_BUFFER[storage_location] = EUSCI_A0->RXBUF;
+        //Clear the interrupt flag right away in case new data is ready
+        EUSCI_A0->IFG &= ~BIT0;
+        //Update to the next position in the buffer
+        storage_location++;
+        //If the end of the buffer was reached, loop back to the start
+        if(storage_location == BUFFER_SIZE)
+            storage_location = 0;
+    }
+}
+
+void setupSerial()
+{
+    //P1.2 and P1.3 are EUSCI_A0 RX and TX respectively
+    P1->SEL0 |=  (BIT2 | BIT3);
+    P1->SEL1 &= ~(BIT2 | BIT3);
+    //Disables EUSCI. Default configuration is 8N1
+    EUSCI_A0->CTLW0  = BIT0;
+    //Connects to SMCLK BIT[7:6] = 10
+    EUSCI_A0->CTLW0 |= BIT7;
+    //UCBR Value from above
+    EUSCI_A0->BRW = 19;
+    //UCBRS (Bits 15-8) & UCBRF (Bits 7-4) & UCOS16 (Bit 0)
+    EUSCI_A0->MCTLW = 0xAA81;
+    //Enable EUSCI
+    EUSCI_A0->CTLW0 &= ~BIT0;
+    //Clear interrupt
+    EUSCI_A0->IFG &= ~BIT0;
+    //Enable interrupt
+    EUSCI_A0->IE |= BIT0;
+    NVIC_EnableIRQ(EUSCIA0_IRQn);
 }
