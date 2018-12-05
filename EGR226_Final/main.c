@@ -3,8 +3,6 @@
  * Class: EGR 226-902
  * Program: Final Project */
 
-//SOLDER P7.7!!!!!
-
 #include "msp.h"
 #include "stdio.h"
 #include "stdlib.h"
@@ -37,12 +35,20 @@
 #define G3          195.9977
 #define F3_SHARP    184.9972
 #define MAX_NOTE_S  74
-#define MAX_NOTE_A  3
+#define MAX_NOTE_A  76
 
 //Global variables
 int note = 0;
 int breath = 0;
-float music_note_sequence_A[][2]={{0,QUAR},{C4,QUAR},{0,QUAR}};
+float music_note_sequence_A[][2]={{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
+{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
+{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
+{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
+{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
+{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
+{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
+{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF}};
+
 float music_note_sequence[][2] = {//Chorus, 39 notes
                                  {E5,EIGHTH},{G5,EIGHTH},{G5,EIGHTH},{C6,QUAR},{B5,QUAR},
                                  {G5,QUAR},{G5,QUAR},{A5,SIXTH},{G5,SIXTH},{F5,QUAR},
@@ -70,7 +76,7 @@ void Clock_Function(int Speed);
 void Store_Alarm_Status(int Status);
 void Store_Time(int Clock_Type);
 void Init_ADC14(void);
-void SetupTimer32ForAlarm();
+void SetupTimer32ForSound();
 void SetUpTimer32ForCounter();
 void InitInterrupts();
 void TimerALEDInit();
@@ -85,9 +91,9 @@ volatile uint32_t second=1;
 //1: set clock time, 2: set alarm time, 3: snooze, 4: on/off
 unsigned int Speed_Flag=0;
 
-int Clk_Hour=10, Clk_Min=9, Clk_Sec=55;
+int Clk_Hour=10, Clk_Min=14, Clk_Sec=50;
 int Alr_Hour=10, Alr_Min=15;
-int Light_Time=6, Ala_Time=6, Clk_Time=6, Light_Time_Flag=1;
+int Light_Time=6, Ala_Time=6, Clk_Time=6;
 int PreAlr_Hour=0, PreAlr_Min=0;
 int counter=0, AlarmGoingOff=0;
 int Hour=0, previous=0;
@@ -103,18 +109,21 @@ unsigned int Alarm_Status=1;
 char Str1[16]="", Str2[16]="", Str3[16]="", Str4[16]="", Str5[16]="";
 
 unsigned int b=0;
+int Alarm_Flag = 0;
+int Time_Diff_Flag = 0;
+int Var = 0;
 
 //Defines for setting LED brightness
 float time_on=0, Brightness=0;
 
-int previous_brightness = 0;
+float previous_brightness = 0;
 float Back_Light = 0;
-int pre_alarm_flag = 0;
 
 int Previous_Button_Press = 0;
 
 volatile int Flag=0;
 volatile int Button=0;
+int Sound_Flag = 0;
 
 #define BUFFER_SIZE 100
 unsigned int Serial_Flag=0;
@@ -124,15 +133,17 @@ uint8_t storage_location=0;
 uint8_t read_location=0;
 
 void main(void)
- {
+{
 	WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;		// stop watchdog timer
     __disable_interrupt();
     int Read_Clk_Hour=0, Read_Clk_Min=0, Read_Clk_Sec=0;
     int Read_Alr_Hour=0, Read_Alr_Min=0;
     INPUT_BUFFER[0]='\0';
-
     float NADC = 0.0;
     static volatile uint16_t Result;
+
+    PreAlr_Hour = Alr_Hour;
+    PreAlr_Min = Alr_Min;
 
     SetupSysTick();
     SetupPort4();
@@ -145,29 +156,58 @@ void main(void)
     __enable_interrupt();
     SetUpTimer32ForCounter();
 
-	while(1)
-	{
-	    if(Serial_Flag)                 //check serial flag here
-	    {
+
+    if((Alarm_Status == 1) || (Alarm_Status == 2)){             //If alarm is on or snoozed
+            if(Clock_Time == Alarm_Time)                            //If the alarm and clock times are in AM or PM
+                Time_Diff_Flag = 1;                                 //alarm time and clock time
+            else if((Clock_Time == 'A') && (Alarm_Time == 'P')){    //If the alarm and clock time differ (AM and PM)
+                if((Clk_Hour == 11) && (Alr_Hour == 12))
+                    Time_Diff_Flag = 2;
+                else if((Clk_Hour == 12) && (Alr_Hour == 1))
+                    Time_Diff_Flag = 2;
+            }
+            else if((Clock_Time == 'P') && (Alarm_Time == 'A')){    //If the alarm and clock time differ (AM and PM)
+                if((Clk_Hour == 11) && (Alr_Hour == 12))
+                    Time_Diff_Flag = 2;
+                else if((Clk_Hour == 12) && (Alr_Hour == 1))
+                    Time_Diff_Flag = 2;
+            }
+        }
+
+        if(Time_Diff_Flag == 1)
+        {
+            Clk_Time = (Clk_Hour * 60) + Clk_Min;           //Calculate clock time in minutes
+            Ala_Time = (Alr_Hour * 60) + Alr_Min;           //Calculate alarm time in minutes
+            Light_Time = Ala_Time - Clk_Time;               //Light time is equal to the difference between
+        }
+        else if(Time_Diff_Flag == 2)
+        {
+            Clk_Time = Clk_Min;                             //Calculate clock time in minutes
+            Ala_Time = 60 + Alr_Min;                        //Calculate alarm time in minutes
+            Light_Time = Ala_Time - Clk_Time;               //Light time is equal to the difference between
+        }
+
+        if((Light_Time <= 5) && (Light_Time > 0)) {           //If light time is equal to 6 = Pre alarm
+            SetupTimer32ForSound();
+            Sound_Flag = 1;
+            }
+
+	while(1) {
+	    if(Serial_Flag) {               //check serial flag here
 	        readInput(string);          //Read the input up to "\n" and store in string
-	        if(string[0] != '\0')       //If statement will continue to run until it reaches the end
-	        {
-	            if(string[0] == 'S')
-	            {
-	                if(string[3] == 'T')
-	                {
+	        if(string[0] != '\0') {     //If statement will continue to run until it reaches the end
+	            if(string[0] == 'S') {
+	                if(string[3] == 'T') {
 	                    Clk_Hour = ((string[8] - 48) * 10) + (string[9] - 48);
 	                    Clk_Min  = ((string[11] - 48) * 10) + (string[12] - 48);
 	                    Clk_Sec  = ((string[14] - 48) * 10) + (string[15] - 48);
 	                    if(Clk_Hour == 12)
 	                        Clock_Time = 'P';
-	                    if((Clk_Hour > 12) && (Clk_Hour <= 23))
-	                    {
+	                    if((Clk_Hour > 12) && (Clk_Hour <= 23)) {
 	                        Clock_Time = 'P';
 	                        Clk_Hour = Clk_Hour - 12;
 	                    }
-	                    else if((Clk_Hour < 12) && (Clk_Hour >= 0))
-	                    {
+	                    else if((Clk_Hour < 12) && (Clk_Hour >= 0)) {
 	                        Clock_Time = 'A';
 	                        if (Clk_Hour == 0)
 	                            Clk_Hour = 12;
@@ -179,19 +219,16 @@ void main(void)
 	                    delay_micro(100);
 	                    writeOutput("\n");
 	                }
-	                else if(string[3] == 'A')
-	                {
+	                else if(string[3] == 'A') {
 	                    Alr_Hour = ((string[9] - 48) * 10) + (string[10] - 48);
 	                    Alr_Min  = ((string[12] - 48) * 10) + (string[13] - 48);
 	                    if(Alr_Hour == 12)
 	                        Alarm_Time = 'P';
-	                    if((Alr_Hour > 12) && (Alr_Hour <= 23))
-	                    {
+	                    if((Alr_Hour > 12) && (Alr_Hour <= 23)) {
 	                        Alarm_Time = 'P';
 	                        Alr_Hour = Alr_Hour - 12;
 	                    }
-	                    else if((Alr_Hour < 12) && (Alr_Hour >= 0))
-	                    {
+	                    else if((Alr_Hour < 12) && (Alr_Hour >= 0)) {
 	                        Alarm_Time = 'A';
 	                        if (Alr_Hour == 0)
 	                            Alr_Hour = 12;
@@ -202,17 +239,14 @@ void main(void)
 	                    delay_micro(100);
 	                    writeOutput("\n");
 	                }
-	                else
-	                {
+	                else {
 	                    writeOutput("Invalid -> Not a set command ");
 	                    writeOutput(string);
 	                    writeOutput("\n\n");
 	                }
 	            }
-	            else if(string[0] == 'R')
-	            {
-	                if(string[4] == 'T')
-	                {
+	            else if(string[0] == 'R') {
+	                if(string[4] == 'T') {
 	                    Read_Clk_Hour = Clk_Hour;
 	                    Read_Clk_Min = Clk_Min;
 	                    Read_Clk_Sec = Clk_Sec;
@@ -242,8 +276,7 @@ void main(void)
 	                    writeOutput(Str5);
 	                    writeOutput("\n");
 	                }
-	                else if(string[4] == 'A')
-	                {
+	                else if(string[4] == 'A') {
 	                    Read_Alr_Hour = Alr_Hour;
 	                    Read_Alr_Min = Alr_Min;
 	                    if((Alarm_Time == 'P') && (Read_Alr_Hour != 12))
@@ -263,15 +296,13 @@ void main(void)
 	                    writeOutput(Str5);
 	                    writeOutput("\n");
 	                }
-	                else
-	                {
+	                else {
 	                    writeOutput("Invalid ->  Not a Read Command: ");
 	                    writeOutput(string);
 	                    writeOutput("\n\n");
 	                }
 	            }
-	            else
-	            {
+	            else {
 	                writeOutput("Invalid -> Not a command: ");
 	                writeOutput(string);
 	                writeOutput("\n\n");
@@ -280,27 +311,26 @@ void main(void)
 	        Serial_Flag = 0;
 	    }
 
-	    ADC14->CTL0 |= 1;                       //Start the conversation
-	    while(!ADC14 -> IFGR0);          //Wait for conversation to be complete
-	    Result = ADC14 -> MEM[2];               //Result is set equal to the value from the ADC
-	    NADC = (Result * 3.3) / 16384.0;          //nADC is set equal to the conversion
-	    Back_Light = (NADC/3.3) * 18750.0;
-	    TIMER_A0 -> CCR[1]  = Back_Light;
-	    ADC14->CTL0 &=~ 2;
-	    ADC14->CTL0 |=  2;
-
-	    if(second)      //do main clock stuff here
-	        Clock_Function(Speed_Flag);
-	    PreAlr_Hour = Alr_Hour;
-        PreAlr_Min = Alr_Min;
-        PreAlr_Time = Alarm_Time;
-
-	    switch (Button)
+	    if(AlarmGoingOff == 0)
 	    {
+	        ADC14->CTL0 |= 1;                   //Start the conversation
+	        while((!ADC14 -> IFGR0) &BIT0);             //Wait for conversation to be complete
+	        Result = ADC14 -> MEM[2];           //Result is set equal to the value from the ADC
+	        NADC = (Result * 3.3) / 16384.0;    //nADC is set equal to the conversion
+	        Back_Light = (NADC/3.3) * 18750.0;
+	        TIMER_A0 -> CCR[1] = Back_Light;
+	        ADC14->CTL0 &=~ 2;
+	        ADC14->CTL0 |=  2;
+	        previous_brightness = Back_Light;
+	    }
+
+	    if(second)                          //do main clock stuff here
+	        Clock_Function(Speed_Flag);
+
+	    switch (Button) {
 	        //Set time
 	        case 1:
-	            if(Flag == 1)
-	            {
+	            if(Flag == 1) {
 	                Previous_Button_Press = 1;
 	                //flash hours
                     if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour<10))
@@ -319,16 +349,15 @@ void main(void)
                         sprintf(Str1,"    :0%d:%d %cM   ",Clk_Min,Clk_Sec,Clock_Time);
                     else if((Clk_Sec<10) && (Clk_Min>9) && (Clk_Hour>9))
                         sprintf(Str1,"    :%d:0%d %cM   ",Clk_Min,Clk_Sec,Clock_Time);
-	                ComWrite(0x02);                  //Moves cursor to first line on LCD
-                    PrintString(Str1);               //Print third string
+	                ComWrite(0x02);                 //Moves cursor to first line on LCD
+                    PrintString(Str1);              //Print third string
                     delay_milli(500);
                     Store_Time(1);
-                    ComWrite(0x02);                  //Moves cursor to first line on LCD
-                    PrintString(Str1);               //Print third string
+                    ComWrite(0x02);                 //Moves cursor to first line on LCD
+                    PrintString(Str1);              //Print third string
                     delay_milli(500);
 	            }
-	            if(Flag == 2)
-	            {
+	            if(Flag == 2) {
 	                Previous_Button_Press = 1;
 	                //Flash minutes
                     if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour<10))
@@ -355,8 +384,7 @@ void main(void)
                     PrintString(Str1);               //Print third string
                     delay_milli(500);
 	            }
-	            if(Flag == 3)
-	            {
+	            if(Flag == 3) {
 	                Store_Time(1);
 	                Flag = 0;
 	                Button = 0;
@@ -364,12 +392,10 @@ void main(void)
 	            }
 	            break;
 
-//_____________________________________________________________________________________________________________________________
 
 	        //Set alarm
 	        case 2:
-                if(Flag == 1)
-                {
+                if(Flag == 1) {
                     Previous_Button_Press = 2;
                     //flash hours
                     if((Alr_Min>9) && (Alr_Hour>9))
@@ -388,8 +414,7 @@ void main(void)
                     PrintString(Str3);               //Print third string
                     delay_milli(500);
                 }
-                if(Flag == 2)
-                {
+                if(Flag == 2) {
                     Previous_Button_Press = 2;
                     //Flash minutes
                     if((Alr_Min>9) && (Alr_Hour>9))
@@ -408,8 +433,7 @@ void main(void)
                     PrintString(Str3);               //Print third string
                     delay_milli(500);
                 }
-                if(Flag == 3)
-                {
+                if(Flag == 3) {
                     Store_Time(0);
                     PreAlr_Hour = Alr_Hour;
                     PreAlr_Min = Alr_Min;
@@ -419,182 +443,288 @@ void main(void)
                     Button = 0;
                     Previous_Button_Press = 0;
                 }
-                Light_Time_Flag = 1;
                 break;
 
-//_____________________________________________________________________________________________________________________________
-
-	        //Snooze
+	        //Snooze 0 = off, 1 = on, 2 = snooze, 3 = no alarm
 	        case 3:
-                if(Alarm_Status == 0)                               //If the alarm is off
-                    Alarm_Status = 0;
-                else if((Alarm_Status == 1) | (Alarm_Status == 2))  //If the alarm is on or is snoozed
-                {
-                    if((Light_Time <= 5) && (Light_Time >=0) && (pre_alarm_flag > 0))       //If it's pre-alarm time
-                    {
-                        Alarm_Status = 2;                          //Alarm status is snooze
-                        TIMER_A0 -> CCR[3]  = 0;                    //Turn off LEDs
-                        TIMER_A0 -> CCR[4]  = 0;
-                        TIMER_A0 -> CCR[1]  = previous_brightness;
-                        TIMER32_2->CONTROL = 0;                     //Turn off song
-                        TIMER32_2->LOAD = 0;
-                        TIMER_A2->CCR[0] = 0;
-                        TIMER_A2->CCTL[1] = 0;
-                        TIMER_A2->CCR[1] = 0;
-                        TIMER_A2->CTL = 0;
-                        Alr_Min = Alr_Min + 10;                     //Set new alarm for 10 minutes
-                        if(Alr_Min > 59)
-                        {
-                            Alr_Min = Alr_Min - 60;
-                            Alr_Hour++;
-                        }
-                        if(Alr_Hour == 13)
-                            Alr_Hour = 1;
-                        if((Alr_Hour == 12) && (Alr_Min < 11))
-                        {
-                            if(Alarm_Time == 'A')
-                                Alarm_Time = 'P';
-                            else if(Alarm_Time == 'P')
-                                Alarm_Time = 'A';
-                        }
-                    }
-                    else if(AlarmGoingOff == 1)                     //If the alarm is going off
-                    {
-                        Alarm_Status = 2;                          //Alarm status is snooze
-                        TIMER_A0 -> CCR[3]  = 0;                    //Turn off LEDs
-                        TIMER_A0 -> CCR[4]  = 0;
-                        TIMER_A0 -> CCR[1]  = previous_brightness;
-                        TIMER32_2->CONTROL = 0;                     //Turn off buzzard
-                        TIMER32_2->LOAD = 0;
-                        TIMER_A2->CCR[0] = 0;
-                        TIMER_A2->CCTL[1] = 0;
-                        TIMER_A2->CCR[1] = 0;
-                        TIMER_A2->CTL = 0;
-                        Alr_Min = Alr_Min + 10;                     //Set new alarm for 10 minutes
-                        if(Alr_Min > 59)
-                        {
-                            Alr_Min = Alr_Min - 60;
-                            Alr_Hour++;
-                        }
-                        if(Alr_Hour == 13)
-                            Alr_Hour = 1;
-                        if((Alr_Hour == 12) && (Alr_Min < 11))
-                        {
-                            if(Alarm_Time == 'A')
-                                Alarm_Time = 'P';
-                            else if(Alarm_Time == 'P')
-                                Alarm_Time = 'A';
-                        }
-                    }
-                    else if((AlarmGoingOff==0) && (pre_alarm_flag == 0))   //If the alarm is not going off nor is in pre-alarm
-                        Alarm_Status = 1;
-                }
+                if((Alarm_Status == 1) || (Alarm_Status == 2)) {    //If the alarm is on or is snoozed
+                    //Alarm must be going off
+                    if(AlarmGoingOff == 1) {
+                        //Store previous alarm
+                        PreAlr_Hour = Alr_Hour;                     //Reset alarm hour
+                        PreAlr_Min = Alr_Min;                       //Reset alarm minute
+                        PreAlr_Time = Alarm_Time;                   //Reset alarm time
 
+                        Alarm_Status = 2;                           //Alarm status is snooze
+                        AlarmGoingOff = 0;
+                        counter = 0;
+                        TIMER_A0  -> CCR[3] = 0;                    //Turn off LEDs
+                        TIMER_A0  -> CCR[4] = 0;
+                        TIMER32_2 -> CONTROL = 0;                   //Turn off sound
+                        TIMER32_2 -> LOAD    = 0;
+                        TIMER_A2 -> CCR[0] = 0;
+                        TIMER_A2 -> CCTL[1] = 0;
+                        TIMER_A2 -> CCR[1] = 0;
+                        TIMER_A2 -> CTL = 0;
+                        Sound_Flag = 0;
+                        TIMER_A0 -> CCR[1] = previous_brightness;  //Reset brightness
+
+                        Alr_Hour = Clk_Hour;
+                        Alarm_Time = Clock_Time;
+                        Alr_Min = Clk_Min + 10;                     //Set new alarm for 10 minutes
+
+                        if(Alr_Min > 59) {
+                            Alr_Min = Alr_Min - 60;
+                            Alr_Hour++;
+                        }
+                        if(Alr_Hour == 13)
+                            Alr_Hour = 1;
+                        if((Alr_Hour == 12) && (Alr_Min < 11)) {
+                            if(Alarm_Time == 'A')
+                                Alarm_Time = 'P';
+                            else if(Alarm_Time == 'P')
+                                Alarm_Time = 'A';
+                        }
+                    }
+                }
                 Flag = 0;
                 Button = 0;
                 break;
 
-//_____________________________________________________________________________________________________________________________
 
 	        //On/Off
                 //0 0ff, 1 on, 2 snooze
             case 4:
-                if(Alarm_Status == 0)
-                {
+                if(Alarm_Status == 0) {
                     Alarm_Status = 1;
                 }
 
-                else if(Alarm_Status == 1)
-                {
-                    if((Light_Time < 6) && (Light_Time >=0) && (Light_Time_Flag != 0))       //If it's pre-alarm time
+                else if((Alarm_Status == 1) || (Alarm_Status == 2)) {
+                    //pre-alarm
+                    if((Light_Time <= 5) && (Light_Time >= 0) && (AlarmGoingOff == 0))
                     {
-                        pre_alarm_flag = 0;
-                        Alarm_Status = 1;
-                        TIMER_A0 -> CCR[3]  = 0;                    //Turn off LEDs
-                        TIMER_A0 -> CCR[4]  = 0;
-                        TIMER32_2->CONTROL = 0;                     //Turn off sounds
-                        TIMER32_2->LOAD = 0;
-                        TIMER_A2->CCR[0] = 0;
-                        TIMER_A2->CCTL[1] = 0;
-                        TIMER_A2->CCR[1] = 0;
-                        TIMER_A2->CTL = 0;
-                        Light_Time = 10;                                //Set light time equal to 10
-                        Light_Time_Flag = 0;
-                    }
-                    else if(AlarmGoingOff == 1)                     //If the alarm is going off
-                    {
-                        Alarm_Status = 1;
-                        TIMER_A0 -> CCR[3]  = 0;                    //Turn off LEDs
-                        TIMER_A0 -> CCR[4]  = 0;
-                        TIMER_A0 -> CCR[1]  = previous_brightness;
-                        TIMER32_2->CONTROL = 0;                     //Turn off sounds
-                        TIMER32_2->LOAD = 0;
-                        TIMER_A2->CCR[0] = 0;
-                        TIMER_A2->CCTL[1] = 0;
-                        TIMER_A2->CCR[1] = 0;
-                        TIMER_A2->CTL = 0;
-                        Light_Time = 10;                                //Set light time equal to 10
-                        Light_Time_Flag = 0;
-                        Alr_Hour = PreAlr_Hour;     //Reset alarm hour
-                        Alr_Min = PreAlr_Min;       //Reset alarm minute
-                        Alarm_Time = PreAlr_Time;   //Reset alarm time
-                    }
-                    else if(Light_Time_Flag == 0)  //If the alarm is not going off nor is in pre-alarm
-                    {
-                        pre_alarm_flag = 0;
-                        Alarm_Status = 0;
-                        Light_Time = 10;                                //Set light time equal to 10
-                    }
-                }
-                else if(Alarm_Status == 2)
-                {
-                    Alarm_Status = 1;           //Alarm status on
-                    Alr_Hour = PreAlr_Hour;     //Reset alarm hour
-                    Alr_Min = PreAlr_Min;       //Reset alarm minute
-                    Alarm_Time = PreAlr_Time;   //Reset alarm time
-                    TIMER_A0 -> CCR[3]  = 0;                    //Turn off LEDs
-                    TIMER_A0 -> CCR[4]  = 0;
-                    TIMER_A0 -> CCR[1]  = previous_brightness;
-                    TIMER32_2->CONTROL = 0;                     //Turn off sounds
-                    TIMER32_2->LOAD = 0;
-                    TIMER_A2->CCR[0] = 0;
-                    TIMER_A2->CCTL[1] = 0;
-                    TIMER_A2->CCR[1] = 0;
-                    TIMER_A2->CTL = 0;
+                        Alarm_Status = 1;                           //Set alarm to on
 
-                    Light_Time_Flag = 0;
+                        counter = 0;
+
+                        TIMER_A0  -> CCR[3] = 0;                    //Turn off LEDs
+                        TIMER_A0  -> CCR[4] = 0;
+                        TIMER_A0  -> CCR[3] = 0;                    //Turn off LEDs
+                        TIMER_A0  -> CCR[4] = 0;
+                        TIMER32_2 -> CONTROL = 0;                   //Turn off sound
+                        TIMER32_2 -> LOAD    = 0;
+                        TIMER_A2 -> CCR[0] = 0;
+                        TIMER_A2 -> CCTL[1] = 0;
+                        TIMER_A2 -> CCR[1] = 0;
+                        TIMER_A2 -> CTL = 0;
+                        Sound_Flag = 0;
+
+                        Alr_Hour = PreAlr_Hour;                     //Reset alarm hour
+                        Alr_Min = PreAlr_Min;                       //Reset alarm minute
+                        Alarm_Time = PreAlr_Time;                   //Reset alarm time
+
+                        Alarm_Flag = 1;                             //Set flag to not make alarm go off
+                    }
+
+                    //sounding alarm
+                    if(AlarmGoingOff == 1)
+                    {
+                        counter = 0;
+                        Alarm_Status = 1;                           //Alarm status is on
+                        AlarmGoingOff = 0;
+
+                        TIMER_A0  -> CCR[3] = 0;                    //Turn off LEDs
+                        TIMER_A0  -> CCR[4] = 0;
+                        TIMER32_2 -> CONTROL = 0;                   //Turn off sound
+                        TIMER32_2 -> LOAD    = 0;
+                        TIMER_A2 -> CCR[0] = 0;
+                        TIMER_A2 -> CCTL[1] = 0;
+                        TIMER_A2 -> CCR[1] = 0;
+                        TIMER_A2 -> CTL = 0;
+                        Sound_Flag = 0;
+
+                        TIMER_A0 -> CCR[1] = previous_brightness;  //Reset brightness
+
+                        Alr_Hour = PreAlr_Hour;                     //Reset alarm hour
+                        Alr_Min = PreAlr_Min;                       //Reset alarm minute
+                        Alarm_Time = PreAlr_Time;                   //Reset alarm time
+
+                        Alarm_Flag = 1;                             //Set flag to not make alarm go off
+                    }
+                    if((AlarmGoingOff == 0) && ((Light_Time > 5) || (Light_Time < 0)))
+                         {
+                        Alarm_Status = 0;
+                        Alr_Hour = PreAlr_Hour;                     //Reset alarm hour
+                        Alr_Min = PreAlr_Min;                       //Reset alarm minute
+                        Alarm_Time = PreAlr_Time;                   //Reset alarm time
+                    }
                 }
                 Flag = 0;
                 Button = 0;
                 break;
-	    }
-	Store_Time(1);
-    Store_Alarm_Status(Alarm_Status);
-    Store_Time(0);
-    GetTemp();
-    Print_To_LCD(Str1, Str2, Str3, Str4, b);
+
+                }
+
+        Store_Time(1);
+        Store_Alarm_Status(Alarm_Status);
+        Store_Time(0);
+        GetTemp();
+        Print_To_LCD(Str1, Str2, Str3, Str4, b);
 	}
+}
+
+void Clock_Function(int Speed)
+{
+    second = 0;
+    //fast
+    if(Speed == 1)
+    {
+        Clk_Min++;
+        if(Clk_Min == 60) {                 //If clock minute is 60
+            Clk_Hour++;                     //Increment clock hour
+            Clk_Min = 0;                    //Set clock minute to zero
+        }
+        if(Clk_Hour == 13)                  //If clock hour is 13
+            Clk_Hour = 1;                   //Set clock hour to zero
+        if((Clk_Hour == 12) && (Clk_Min == 0) && (Clk_Sec == 0)) {  //If the time is 12:00:00
+            if(Clock_Time == 'A')           //If clock time was AM
+                Clock_Time = 'P';           //Set clock time to PM
+            else if(Clock_Time == 'P')      //If clock time was PM
+                Clock_Time = 'A';           //Set clock time to AM
+        }
+    }
+    else if(Speed == 0) {
+        //Clock time
+        Clk_Sec++;                          //Increment clock second
+        if(Clk_Sec == 60) {                 //If clock second is 60
+            Clk_Min++;                      //Increment clock minute
+            Clk_Sec = 0;                    //Set clock second to zero
+        }
+        if(Clk_Min == 60) {                 //If clock minute is 60
+            Clk_Hour++;                     //Increment clock hour
+            Clk_Min = 0;                    //Set clock minute to zero
+        }
+        if(Clk_Hour == 13)                  //If clock hour is 13
+            Clk_Hour = 1;                   //Set clock hour to zero
+        if((Clk_Hour == 12) && (Clk_Min == 0) && (Clk_Sec == 0)) {  //If the time is 12:00:00
+            if(Clock_Time == 'A')           //If clock time was AM
+                Clock_Time = 'P';           //Set clock time to PM
+            else if(Clock_Time == 'P')      //If clock time was PM
+                Clock_Time = 'A';           //Set clock time to AM
+        }
+    }
+
+    if((Alarm_Status == 1) || (Alarm_Status == 2)){             //If alarm is on or snoozed
+        if(Clock_Time == Alarm_Time)                            //If the alarm and clock times are in AM or PM
+            Time_Diff_Flag = 1;                                 //alarm time and clock time
+        else if((Clock_Time == 'A') && (Alarm_Time == 'P')){    //If the alarm and clock time differ (AM and PM)
+            if((Clk_Hour == 11) && (Alr_Hour == 12))
+                Time_Diff_Flag = 2;
+            else if((Clk_Hour == 12) && (Alr_Hour == 1))
+                Time_Diff_Flag = 2;
+        }
+        else if((Clock_Time == 'P') && (Alarm_Time == 'A')){    //If the alarm and clock time differ (AM and PM)
+            if((Clk_Hour == 11) && (Alr_Hour == 12))
+                Time_Diff_Flag = 2;
+            else if((Clk_Hour == 12) && (Alr_Hour == 1))
+                Time_Diff_Flag = 2;
+        }
+    }
+
+    if(Time_Diff_Flag == 1)
+    {
+        Clk_Time = (Clk_Hour * 60) + Clk_Min;           //Calculate clock time in minutes
+        Ala_Time = (Alr_Hour * 60) + Alr_Min;           //Calculate alarm time in minutes
+        Light_Time = Ala_Time - Clk_Time;               //Light time is equal to the difference between
+    }
+    else if(Time_Diff_Flag == 2)
+    {
+        Clk_Time = Clk_Min;                             //Calculate clock time in minutes
+        Ala_Time = 60 + Alr_Min;                        //Calculate alarm time in minutes
+        Light_Time = Ala_Time - Clk_Time;               //Light time is equal to the difference between
+    }
+
+    if((Light_Time == 5) && (Clk_Sec == 0)) {           //If light time is equal to 6 = Pre alarm
+        counter--;
+        Sound_Flag = 1;
+        SetupTimer32ForSound();
+    }
+
+    if((Sound_Flag == 0) && (Light_Time <= 5) && (Alarm_Flag == 0))
+    {
+        Sound_Flag = 1;
+        SetupTimer32ForSound();
+    }
+
+    if((Speed == 0) && (Light_Time <= 5) && (Alarm_Flag == 0)) {    //If light time is within 5 minutes before the alarm
+        counter++;                                                  //Increment counter
+
+        if(Light_Time > 0)
+        {
+            if(counter == 3) {                              //If counter is 3
+                Brightness++;                               //Increment brightness
+                time_on = (Brightness /100.0) * 18750.0;    //Get PWM duty cycle for brightness of LED
+                TIMER_A0 -> CCR[3]  = time_on;              //Set brightness for Green LED
+                TIMER_A0 -> CCR[4]  = time_on;              //Set brightness for Blue LED
+                counter = 0;                                //Set counter back to zero
+            }
+        }
+    }
+    else if((Speed == 1) && (Light_Time <= 5) && (Alarm_Flag == 0)) {          //If light time is within 5 minutes before the alarm
+        counter++;
+        if(Light_Time > 0)
+        {
+            if((counter <= 5) && (counter > 0)) {
+                Brightness = Brightness + 20;               //Increment brightness
+                time_on = (Brightness /100.0) * 18750.0;    //Get PWM duty cycle for brightness of LED
+                TIMER_A0 -> CCR[3]  = time_on;              //Set brightness for Green LED
+                TIMER_A0 -> CCR[4]  = time_on;              //Set brightness for Blue LED
+                counter = 0;                                //Set counter back to zero
+            }
+        }
+    }
+
+    //if alarm is going off
+    if((Alr_Min == Clk_Min) && (Alr_Hour == Clk_Hour) && (Clk_Sec == 0) && (Alarm_Flag == 0) && (Light_Time == 0))
+    {
+        AlarmGoingOff = 1;                              //Set alarm to on
+
+        TIMER32_2->CONTROL = 0;        //Sets timer 2 for Enabled, Periodic, With Interrupt, No Prescaler, 32 bit mode, One Shot Mode
+        TIMER32_2->LOAD = 0;          //Set to a count down of 1 second on 3 MHz clock
+        TIMER_A2->CCR[0] = 0;                   // Turn off to start
+        TIMER_A2->CCTL[1] = 0; // Setup Timer A0_1 Reset/Set, Interrupt, No Output
+        TIMER_A2->CCR[1] = 0;                   // Turn off timerA to start
+        TIMER_A2->CTL = 0;     // Count Up mode using SMCLK, Clears, Clear Interrupt Flag
+
+        previous_brightness = Back_Light;
+        TIMER_A0 -> CCR[1]  = 18750;
+        TIMER_A0 -> CCR[3]  = 18750;                    //Set brightness for Green LED to 100%
+        TIMER_A0 -> CCR[4]  = 18750;                    //Set brightness for Blue LED to 100%
+        Light_Time = 6;                                //Set light time equal to 10
+        counter = 0;
+        SetupTimer32ForSound();                         //Begin alarm sound
+    }
+
+    //if Alarm was supposed to go off
+    else if((Alr_Min == Clk_Min) && (Alr_Hour == Clk_Hour) && (Clk_Sec == 0) && (Alarm_Flag == 1) && (Light_Time == 0))
+    {
+        AlarmGoingOff = 0;
+        Alarm_Flag = 0;
+    }
 }
 
 void Init_ADC14(void)               //This function initializes the ADC
 {
-    P5 -> SEL0 |= (BIT2|BIT4);      //configure P5.2 fir A3
-    P5 -> SEL1 |= (BIT2|BIT4);      //P5.4 for A1
-    //power on and disable
-    ADC14 -> CTL0    = 0x00000010;
-    //S/H pulse mode, Sysclk, 32 sample clocks
-    //ADC14 -> CTL0   |= 0x04080300;
-    ADC14 -> CTL0   |= 0x04270210;
-    //14 bit resolution
-    ADC14 -> CTL1    |= 0x00000030;
-    //A1 input, single-ended
-    ADC14 -> MCTL[2] = 1;
-    //A1 input, single-ended
-    ADC14 -> MCTL[0] = 3;
-    //convert for mem reg 2
-    ADC14 -> CTL1   |= 0x00020000;
-    //enable ADC
-    ADC14 -> CTL0   |= 2;
+    P5 -> SEL0 |= (BIT2|BIT4);      //P5.2 for A3 for temp
+    P5 -> SEL1 |= (BIT2|BIT4);      //P5.4 for A1 for brightness
+
+    ADC14 -> CTL0 &=~ ADC14_CTL0_ENC;
+    ADC14-> CTL0 = 0b10000100001000100000001110010000;
+    ADC14 -> CTL1    = 0x00000030; //14 bit resolution
+    ADC14 -> CTL1   |= 0x00000000;  //convert for mem reg 2
+    ADC14 -> MCTL[2] = 1;           //A1 input, single-ended
+    ADC14 -> MCTL[0] = 3;           //A3 input, single-ended
+    ADC14 -> CTL0 |= ADC14_CTL0_ENC;
 }
 
 void GetTemp()
@@ -614,15 +744,16 @@ void GetTemp()
 
 void Print_To_LCD(char *String1, char *String2, char *String3, char *String4, int length)
 {
+    char String6[] = "     ";
     int i=0;
     ComWrite(0x02);                  //Home cursor
-    PrintString(String1);               //Print first string
+    PrintString(String1);            //Print first string
     delay_micro(100);
     ComWrite(0xC0);                  //Moves cursor to second line on LCD
-    PrintString(String2);               //Print second string
+    PrintString(String2);            //Print second string
     delay_micro(100);
     ComWrite(0x90);                  //Moves cursor to third line on LCD
-    PrintString(String3);               //Print third string
+    PrintString(String3);            //Print third string
     delay_micro(100);
     ComWrite(0xD0);                  //Move cursor to fourth line on LCD
     for(i=0;i<5;i++)
@@ -634,139 +765,8 @@ void Print_To_LCD(char *String1, char *String2, char *String3, char *String4, in
     DataWrite(0xDF);                 //Print degree symbol
     delay_micro(100);
     DataWrite('F');                  //Print units
-}
+    PrintString(String6);            //Print second string
 
-void Clock_Function(int Speed)
-{
-    second = 0;
-
-    //fast
-    if(Speed == 1)
-    {
-        Clk_Min++;
-        if(Clk_Min == 60)                   //If clock minute is 60
-        {
-            Clk_Hour++;                     //Increment clock hour
-            Clk_Min = 0;                    //Set clock minute to zero
-        }
-        if(Clk_Hour == 13)                  //If clock hour is 13
-            Clk_Hour = 1;                   //Set clock hour to zero
-        if((Clk_Hour == 12) && (Clk_Min == 0) && (Clk_Sec == 0))    //If the time is 12:00:00
-        {
-            if(Clock_Time == 'A')           //If clock time was AM
-                Clock_Time = 'P';           //Set clock time to PM
-            else if(Clock_Time == 'P')      //If clock time was PM
-                Clock_Time = 'A';           //Set clock time to AM
-        }
-    }
-    else if(Speed == 0)
-    {
-        //Clock time
-        Clk_Sec++;                          //Increment clock second
-        if(Clk_Sec == 60)                   //If clock second is 60
-        {
-            Clk_Min++;                      //Increment clock minute
-            Clk_Sec = 0;                    //Set clock second to zero
-        }
-        if(Clk_Min == 60)                   //If clock minute is 60
-        {
-            Clk_Hour++;                     //Increment clock hour
-            Clk_Min = 0;                    //Set clock minute to zero
-        }
-        if(Clk_Hour == 13)                  //If clock hour is 13
-            Clk_Hour = 1;                   //Set clock hour to zero
-        if((Clk_Hour == 12) && (Clk_Min == 0) && (Clk_Sec == 0))    //If the time is 12:00:00
-        {
-            if(Clock_Time == 'A')           //If clock time was AM
-                Clock_Time = 'P';           //Set clock time to PM
-            else if(Clock_Time == 'P')      //If clock time was PM
-                Clock_Time = 'A';           //Set clock time to AM
-        }
-    }
-
-    if((Alarm_Status == 1) | (Alarm_Status == 2))           //If alarm is on or snoozed
-    {
-        if(Clock_Time == Alarm_Time)                        //If the alarm and clock times are in AM or PM
-        {
-            Clk_Time = (Clk_Hour * 60) + Clk_Min;           //Calculate clock time in minutes
-            Ala_Time = (Alr_Hour * 60) + Alr_Min;           //Calculate alarm time in minutes
-            Light_Time = Ala_Time - Clk_Time;               //Light time is equal to the difference between
-        }                                                   //alarm time and clock time
-        else if(Clock_Time != Alarm_Time)                   //If the alarm and clock time differ (AM and PM)
-        {
-            if(Clk_Hour < Alr_Hour)
-            {
-                Hour = Alr_Hour - Clk_Hour;                     //Calculate the hour difference between clock and alarm time
-                if(Hour == 0)
-                    Hour = 4;
-                Clk_Time = Clk_Min;                         //Clock time is set to clock minute
-                Ala_Time = (60 * Hour) + Alr_Min;           //Alarm time is set equal to hour difference and
-                //alarm minute in minutes
-                Light_Time = Ala_Time - Clk_Time;           //Light time is equal to the difference between
-            }
-            else if(Alr_Hour <= Clk_Hour)
-            {
-                Hour = Clk_Hour - Alr_Hour;                     //Calculate the hour difference between clock and alarm time
-                if(Hour == 0)
-                    Hour = 4;
-                Clk_Time = Clk_Min;                         //Clock time is set to clock minute
-                Ala_Time = (60 * Hour) + Alr_Min;           //Alarm time is set equal to hour difference and
-                //alarm minute in minutes
-                Light_Time = Ala_Time - Clk_Time;           //Light time is equal to the difference between
-            }
-        }                                                   //alarm time and clock time
-        //Reset flag when the alarm would have gone off
-        if((Alr_Min == Clk_Min) && (Alr_Hour == Clk_Hour) && (Clk_Sec == 0) && (Light_Time == 0) && (Light_Time_Flag != 0))  //If alarm time is equal to clock time
-        {
-            AlarmGoingOff = 1;                              //Set alarm to on
-            previous_brightness = Back_Light;
-            TIMER_A0 -> CCR[1]  = 18750;
-            TIMER_A0 -> CCR[3]  = 18750;                    //Set brightness for Green LED to 100%
-            TIMER_A0 -> CCR[4]  = 18750;                    //Set brightness for Blue LED to 100%
-            Light_Time = 10;                                //Set light time equal to 10
-            SetupTimer32ForAlarm();                        //Begin alarm sound
-        }
-        if((Light_Time == 5) && (Clk_Sec == 0))                                 //If light time is equal to 6 = Pre alarm
-        {
-            AlarmGoingOff = 0;                              //Set alarm to off
-            SetupTimer32ForAlarm();                          //Begin wake up song
-        }
-        if((Light_Time == 5) && (Clk_Sec == 1))                                 //If light time is equal to 6 = Pre alarm
-        {
-            counter--;
-        }
-        if((Alr_Min == Clk_Min) && (Alr_Hour == Clk_Hour) && (Light_Time_Flag == 0))  //If alarm time is equal to clock time
-        {
-            pre_alarm_flag = 0;
-            Light_Time_Flag = 1;
-        }
-        if((Speed == 0) && (Light_Time <= 5) && (Light_Time >= 0) && (Light_Time_Flag != 0))           //If light time is within 5 minutes before the alarm
-        {
-            pre_alarm_flag++;
-            counter++;                                      //Increment counter
-            if(counter == 3)                                //If counter is 3
-            {
-                Brightness++;                               //Increment brightness
-                time_on = (Brightness /100.0) * 18750.0;    //Get PWM duty cycle for brightness of LED
-                TIMER_A0 -> CCR[3]  = time_on;              //Set brightness for Green LED
-                TIMER_A0 -> CCR[4]  = time_on;              //Set brightness for Blue LED
-                counter = 0;                                //Set counter back to zero
-            }
-        }
-        else if((Speed == 1) && (Light_Time <= 5) && (Light_Time >= 0) && (Light_Time_Flag != 0))           //If light time is within 5 minutes before the alarm
-        {
-            pre_alarm_flag++;
-            counter++;
-            if(counter <= 5 & counter > 0)
-            {
-                Brightness = Brightness + 20;                               //Increment brightness
-                time_on = (Brightness /100.0) * 18750.0;    //Get PWM duty cycle for brightness of LED
-                TIMER_A0 -> CCR[3]  = time_on;              //Set brightness for Green LED
-                TIMER_A0 -> CCR[4]  = time_on;              //Set brightness for Blue LED
-                counter = 0;                                //Set counter back to zero
-            }
-        }
-    }
 }
 
 void Store_Alarm_Status(int Status)
@@ -781,8 +781,7 @@ void Store_Alarm_Status(int Status)
 
 void Store_Time(int Clock_Type)
 {
-    if(Clock_Type == 1) //Stores clock time in string
-    {
+    if(Clock_Type == 1) { //Stores clock time in string
         if((Clk_Sec<10) && (Clk_Min<10) && (Clk_Hour<10))
             sprintf(Str1,"   %d:0%d:0%d %cM   ",Clk_Hour,Clk_Min,Clk_Sec,Clock_Time);
         else if((Clk_Sec>9) && (Clk_Min>9) && (Clk_Hour<10))
@@ -801,8 +800,7 @@ void Store_Time(int Clock_Type)
             sprintf(Str1,"  %d:%d:0%d %cM   ",Clk_Hour,Clk_Min,Clk_Sec,Clock_Time);
     }
 
-    else    //Store alarm time in string
-    {
+    else {    //Store alarm time in string
         if((Alr_Min>9) && (Alr_Hour>9))
             sprintf(Str3, "    %d:%d %cM    ", Alr_Hour, Alr_Min, Alarm_Time);
         else if((Alr_Min>9) && (Alr_Hour<10))
@@ -816,8 +814,7 @@ void Store_Time(int Clock_Type)
 
 void TimerALEDInit()
 {
-    //Backlight 2.4, Blue led P2.6, red led P2.7
-    P2->SEL0 |=  (BIT4|BIT6|BIT7);
+    P2->SEL0 |=  (BIT4|BIT6|BIT7);  //Backlight 2.4, Blue led P2.6, red led P2.7
     P2->SEL1 &=~ (BIT4|BIT6|BIT7);
     P2->DIR  |=  (BIT4|BIT6|BIT7);
 
@@ -828,29 +825,19 @@ void TimerALEDInit()
     TIMER_A0->CCTL[1] = TIMER_A_CCTLN_OUTMOD_7; //backlight
 }
 
-//Sets time and alarm interrupt
-void PORT5_IRQHandler(void)
+void PORT5_IRQHandler(void) //Sets time and alarm interrupt
 {
-    while (!((P5->IN & BIT7) == BIT7)) {}
-    while (!((P5->IN & BIT1) == BIT1)) {}
-    //Set time
-    if(P5->IFG & BIT7)
-    {
+    if(P5->IFG & BIT7) {  //Set time
         delay_micro(100);
-        if((Previous_Button_Press == 0) | (Previous_Button_Press == 1))
-        {
+        if((Previous_Button_Press == 0) | (Previous_Button_Press == 1)) {
             Flag++;
             Button = 1;
         }
         P5 -> IFG &=~ BIT7;
     }
-
-    //Set alarm
-    if(P5->IFG & BIT1)
-    {
+    if(P5->IFG & BIT1) {    //Set alarm
         delay_micro(100);
-        if((Previous_Button_Press == 0) | (Previous_Button_Press == 2))
-        {
+        if((Previous_Button_Press == 0) | (Previous_Button_Press == 2)) {
             Flag++;
             Button = 2;
         }
@@ -860,87 +847,68 @@ void PORT5_IRQHandler(void)
 
 void PORT2_IRQHandler(void)     //Snooze and on/off interrupts
 {
-    while (!((P2->IN & BIT3) == BIT3)) {}
-    while (!((P2->IN & BIT5) == BIT5)) {}
-    //Snooze
-    if(P2->IFG & BIT3)
-    {
+    if(P2->IFG & BIT3) { //Snooze
         delay_micro(100);
-        if(Button == 1)
-        {
-            if(Flag == 1)
-            {
+        if(Button == 1) {
+            if(Flag == 1) {
                 previous = Clk_Hour;
                 Clk_Hour--;
                 if(Clk_Hour == 0)   //If hours reaches 1 am/pm, go to 12 pm/am
                     Clk_Hour = 12;
-                if((Clk_Hour == 11) && (previous == 12))
-                {
+                if((Clk_Hour == 11) && (previous == 12)) {
                     if(Clock_Time == 'A')
                         Clock_Time = 'P';
                     else if(Clock_Time == 'P')
                         Clock_Time = 'A';
                 }
             }
-            else if(Flag == 2)
-            {
+            else if(Flag == 2) {
                 Clk_Min--;
                 if(Clk_Min == -1)   //If minutes reaches -1, go to 59
                     Clk_Min = 59;
             }
         }
-        else if(Button == 2)
-        {
-            if(Flag == 1)
-            {
+        else if(Button == 2) {
+            if(Flag == 1) {
                 previous = Alr_Hour;
                 Alr_Hour--;
                 if(Alr_Hour == 0)   //If hours reaches 1 am/pm, go to 12 pm/am
                     Alr_Hour = 12;
-                if((Alr_Hour == 11) && (previous == 12))
-                {
+                if((Alr_Hour == 11) && (previous == 12)) {
                     if(Alarm_Time == 'A')
                         Alarm_Time = 'P';
                     else if(Alarm_Time == 'P')
                         Alarm_Time = 'A';
                 }
             }
-            else if(Flag == 2)
-            {
+            else if(Flag == 2) {
                 Alr_Min--;
                 if(Alr_Min == -1)   //If minutes reaches -1, go to 69 and increment hour
                     Alr_Min = 59;
             }
         }
-        else if (Button == 0)
-        {
+        else if (Button == 0) {
             Button = 3;
         }
         P2 -> IFG &=~ BIT3;
     }
-    //On/off
-    if(P2->IFG & BIT5)
-    {
+    if(P2->IFG & BIT5) {  //On/off
         delay_micro(100);
-        if(Button == 1)
-        {
-            if(Flag == 1)
-            {
+        if(Button == 1) {
+            if(Flag == 1) {
                 previous = Clk_Hour;
                 Clk_Hour++;
                 if(Clk_Hour == 13)  //If hours reaches 12 am/pm, go to 1 pm/am
                     Clk_Hour = 1;
 
-                if((Clk_Hour == 12) && (previous == 11))
-                {
+                if((Clk_Hour == 12) && (previous == 11)) {
                     if(Clock_Time == 'A')
                         Clock_Time = 'P';
                     else if(Clock_Time == 'P')
                         Clock_Time = 'A';
                 }
              }
-            else if(Flag == 2)
-            {
+            else if(Flag == 2) {
                 Clk_Min++;
                 if(Clk_Min == 60)   //If minutes reaches 60, go to 0
                     Clk_Min = 0;
@@ -948,29 +916,25 @@ void PORT2_IRQHandler(void)     //Snooze and on/off interrupts
         }
         else if(Button == 2)
         {
-            if(Flag == 1)
-            {
+            if(Flag == 1) {
                 previous = Alr_Hour;
                 Alr_Hour++;
                 if(Alr_Hour == 13)  //If hours reaches 12 am/pm, go to 1 pm/am
                     Alr_Hour = 1;
-                if((Alr_Hour == 12) && (previous == 11))
-                {
+                if((Alr_Hour == 12) && (previous == 11)) {
                     if(Alarm_Time == 'A')
                         Alarm_Time = 'P';
                     else if(Alarm_Time == 'P')
                         Alarm_Time = 'A';
                 }
             }
-            else if(Flag == 2)
-            {
+            else if(Flag == 2) {
                 Alr_Min++;
                 if(Alr_Min == 60)   //If minutes reaches 60, go to 0 and increment hour
                     Alr_Min = 0;
             }
         }
-        else if(Button == 0)
-        {
+        else if(Button == 0) {
             Button = 4;
         }
         P2 -> IFG &=~ BIT5;
@@ -979,13 +943,11 @@ void PORT2_IRQHandler(void)     //Snooze and on/off interrupts
 
 void PORT1_IRQHandler(void)
 {
-    if(P1->IFG & BIT1)      //Normal Speed
-    {
+    if(P1->IFG & BIT1) {     //Normal Speed
         Speed_Flag = 0;
         P1 -> IFG &=~ BIT1;
     }
-    if(P1->IFG & BIT4)      //Fast Speed
-    {
+    if(P1->IFG & BIT4) {     //Fast Speed
         Speed_Flag = 1;
         P1 -> IFG &=~ BIT4;
     }
@@ -1046,9 +1008,6 @@ void T32_INT2_IRQHandler()
 {
     if(AlarmGoingOff == 1)
     {
-        TIMER_A0 -> CCR[3]  = 18750;                    //Set brightness for Green LED to 100%
-        TIMER_A0 -> CCR[4]  = 18750;                    //Set brightness for Blue LED to 100%
-
         TIMER32_2->INTCLR = 1;                                              //Clear interrupt flag so it does not interrupt again immediately.
         if(breath) {                                                        //Provides separation between notes
             TIMER_A2->CCR[0] = 0;                                           //Set output of TimerA to 0
@@ -1058,8 +1017,8 @@ void T32_INT2_IRQHandler()
             breath = 0;                                                     //Next Timer32 interrupt is no longer a breath, but is a note
         }
         else {                                                              //If not a breath (a note)
-            TIMER32_2->LOAD = music_note_sequence_A[note][1] - 1;       //Load into interrupt count down the length of this note
-            if(music_note_sequence_A[note][0] == REST) {                //If note is actually a rest, load in nothing to TimerA
+            TIMER32_2->LOAD = music_note_sequence_A[note][1] - 1;             //Load into interrupt count down the length of this note
+            if(music_note_sequence_A[note][0] == REST) {                      //If note is actually a rest, load in nothing to TimerA
                 TIMER_A2->CCR[0] = 0;
                 TIMER_A2->CCR[1] = 0;
                 TIMER_A2->CCR[2] = 0;
@@ -1067,13 +1026,13 @@ void T32_INT2_IRQHandler()
             else {
                 TIMER_A2->CCR[0] = 3000000 / music_note_sequence_A[note][0];  //Math in an interrupt is bad behavior, but shows how things are happening.  This takes our clock and divides by the frequency of this note to get the period.
                 TIMER_A2->CCR[1] = 1500000 / music_note_sequence_A[note][0];  //50% duty cycle
-                TIMER_A2->CCR[2] = TIMER_A0->CCR[0];                          //Had this in here for fun with interrupts.  Not used right now
+                TIMER_A2->CCR[2] = TIMER_A2->CCR[0];                        //Had this in here for fun with interrupts.  Not used right now
             }
-            note = note + 1;                                                  //Next note
-            if(note >= MAX_NOTE_A) {                                          //Go back to the beginning if at the end
+            note = note + 1;                                                //Next note
+            if(note >= MAX_NOTE_A) {                                        //Go back to the beginning if at the end
                 note = 0;
             }
-            breath = 1;                                                       //Next time through should be a breath for separation.
+            breath = 1;                                                     //Next time through should be a breath for separation.
         }
     }
     else if(AlarmGoingOff == 0)
@@ -1096,7 +1055,7 @@ void T32_INT2_IRQHandler()
             else {
                 TIMER_A2->CCR[0] = 3000000 / music_note_sequence[note][0];  //Math in an interrupt is bad behavior, but shows how things are happening.  This takes our clock and divides by the frequency of this note to get the period.
                 TIMER_A2->CCR[1] = 1500000 / music_note_sequence[note][0];  //50% duty cycle
-                TIMER_A2->CCR[2] = TIMER_A0->CCR[0];                        //Had this in here for fun with interrupts.  Not used right now
+                TIMER_A2->CCR[2] = TIMER_A2->CCR[0];                        //Had this in here for fun with interrupts.  Not used right now
             }
             note = note + 1;                                                //Next note
             if(note >= MAX_NOTE_S) {                                        //Go back to the beginning if at the end
@@ -1107,11 +1066,17 @@ void T32_INT2_IRQHandler()
     }
 }
 
-void SetupTimer32ForAlarm()
+void TA2_N_IRQHandler()
 {
-    P5->SEL0 |=  (BIT6);                    //Setup pwm pin
+    if(TIMER_A2->CCTL[1] & BIT0){}          //If CCTL1 is the reason for the interrupt (BIT0 holds the flag)
+}
+
+void SetupTimer32ForSound()
+{
+    P5->SEL0 |=  (BIT6);
     P5->SEL1 &=~ (BIT6);
     P5->DIR  |=  (BIT6);
+
     TIMER32_2->CONTROL = 0b11100011;        //Sets timer 2 for Enabled, Periodic, With Interrupt, No Prescaler, 32 bit mode, One Shot Mode
     TIMER32_2->LOAD = 3000000 - 1;          //Set to a count down of 1 second on 3 MHz clock
     NVIC_EnableIRQ(T32_INT2_IRQn);          //Enable Timer32_2 interrupt
@@ -1119,6 +1084,7 @@ void SetupTimer32ForAlarm()
     TIMER_A2->CCTL[1] = 0b0000000011110100; // Setup Timer A0_1 Reset/Set, Interrupt, No Output
     TIMER_A2->CCR[1] = 0;                   // Turn off timerA to start
     TIMER_A2->CTL = 0b0000001000010100;     // Count Up mode using SMCLK, Clears, Clear Interrupt Flag
+    NVIC_EnableIRQ(TA0_N_IRQn);             // Enable interrupts for CCTL1-6 (if on)
 }
 
 void writeOutput(char *string)              //Function prints input string to user (via Tera Term)
@@ -1134,8 +1100,7 @@ void writeOutput(char *string)              //Function prints input string to us
 void readInput(char *string)                //Functions reads the input from the user (via Tera Term)
 {
     int i=0;                                //Determines the location in the char array "string" that is being written to
-    do
-    {
+    do {
         while(read_location == storage_location && INPUT_BUFFER[read_location] != '\n');    //If a new line hasn't been found yet,
                                                                                             //but the program is caught up to what
                                                                                             //has been received, wait here for new data
@@ -1152,8 +1117,7 @@ void readInput(char *string)                //Functions reads the input from the
 
 void EUSCIA0_IRQHandler(void)                               //Interrupt handler function
 {
-    if (EUSCI_A0->IFG & BIT0)                               //Interrupt on the receive line
-    {
+    if (EUSCI_A0->IFG & BIT0){                               //Interrupt on the receive line
         INPUT_BUFFER[storage_location] = EUSCI_A0->RXBUF;   //Store the new piece of data at the present location in the buffer
         EUSCI_A0->IFG &= ~BIT0;                             //Clear the interrupt flag right away in case new data is ready
         storage_location++;                                 //Update to the next position in the buffer
