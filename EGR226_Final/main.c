@@ -41,35 +41,23 @@
 int note = 0;
 int breath = 0;
 float music_note_sequence_A[][2]={{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
-{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
-{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
-{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
-{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
-{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
-{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
-{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF}};
+        {C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
+        {C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
+        {C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
+        {C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
+        {C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
+        {C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},
+        {C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF},{C4,DOT_HALF},{0,DOT_HALF}};
 
 float music_note_sequence[][2] = {//Chorus, 39 notes
-                                 {E5,EIGHTH},{G5,EIGHTH},{G5,EIGHTH},{C6,QUAR},{B5,QUAR},
-                                 {G5,QUAR},{G5,QUAR},{A5,SIXTH},{G5,SIXTH},{F5,QUAR},
-                                 {0,QUAR},{E5,EIGHTH},{G5,EIGHTH},{G5,EIGHTH},{C6,QUAR},
-                                 {B5,QUAR},{G5,QUAR},{E5,EIGHTH},{D5,QUAR},{0,HALF},
-                                 {E5,EIGHTH},{G5,EIGHTH},{G5,EIGHTH},{C6,QUAR},{B5,QUAR},
-                                 {G5,QUAR},{G5,QUAR},{A5,SIXTH},{G5,SIXTH},{F5,QUAR},
-                                 {0,QUAR},{E5,EIGHTH},{D5,EIGHTH},{E5,QUAR},{D5,EIGHTH},
-                                 {C5,EIGHTH},{C5,DOT_HALF},{0,QUAR},
+        {E5,EIGHTH},{G5,EIGHTH},{G5,EIGHTH},{C6,QUAR},{B5,QUAR},{G5,QUAR},{G5,QUAR},{A5,SIXTH},{G5,SIXTH},{F5,QUAR},{0,QUAR},{E5,EIGHTH},
+        {G5,EIGHTH},{G5,EIGHTH},{C6,QUAR},{B5,QUAR},{G5,QUAR},{E5,EIGHTH},{D5,QUAR},{0,HALF},{E5,EIGHTH},{G5,EIGHTH},{G5,EIGHTH},{C6,QUAR},
+        {B5,QUAR},{G5,QUAR},{G5,QUAR},{A5,SIXTH},{G5,SIXTH},{F5,QUAR},{0,QUAR},{E5,EIGHTH},{D5,EIGHTH},{E5,QUAR},{D5,EIGHTH},{C5,EIGHTH},{C5,DOT_HALF},{0,QUAR},
                                  //Post chorus, 35 notes
-                                 {A3,EIGHTH},{G3,EIGHTH},{A3,EIGHTH},{C4,DOT_QUAR},
-                                 {A3,EIGHTH},{G3,EIGHTH},{A3,EIGHTH},{D4,DOT_QUAR},
-                                 {E4,EIGHTH},{G4,EIGHTH},{E4,SIXTH},{D4,SIXTH},
-                                 {C4,EIGHTH},{D4,EIGHTH},{G3,DOT_QUAR},{D4,EIGHTH},
-                                 {F3_SHARP,DOT_QUAR},{A3,EIGHTH},{G3,EIGHTH},{A3,EIGHTH},
-                                 {C4,DOT_QUAR},{A3,EIGHTH},{G3,EIGHTH},{A3,EIGHTH},
-                                 {D4,DOT_QUAR},{E4,EIGHTH},{G4,EIGHTH},{E4,SIXTH},
-                                 {D4,SIXTH},{C4,EIGHTH},{D4,EIGHTH},{G3,DOT_QUAR},
-                                 {D4,EIGHTH},{F3_SHARP,DOT_QUAR},{A3,HALF},
-                                 {0, QUAR}};
-
+        {A3,EIGHTH},{G3,EIGHTH},{A3,EIGHTH},{C4,DOT_QUAR},{A3,EIGHTH},{G3,EIGHTH},{A3,EIGHTH},{D4,DOT_QUAR},{E4,EIGHTH},{G4,EIGHTH},{E4,SIXTH},
+        {D4,SIXTH},{C4,EIGHTH},{D4,EIGHTH},{G3,DOT_QUAR},{D4,EIGHTH},{F3_SHARP,DOT_QUAR},{A3,EIGHTH},{G3,EIGHTH},{A3,EIGHTH},{C4,DOT_QUAR},
+        {A3,EIGHTH},{G3,EIGHTH},{A3,EIGHTH},{D4,DOT_QUAR},{E4,EIGHTH},{G4,EIGHTH},{E4,SIXTH},{D4,SIXTH},{C4,EIGHTH},{D4,EIGHTH},{G3,DOT_QUAR},
+        {D4,EIGHTH},{F3_SHARP,DOT_QUAR},{A3,HALF},{0, QUAR}};
 
 void Print_To_LCD(char *String1, char *String2, char *String3, char *String4, int length);
 void Clock_Function(int Speed);
@@ -91,7 +79,7 @@ volatile uint32_t second=1;
 //1: set clock time, 2: set alarm time, 3: snooze, 4: on/off
 unsigned int Speed_Flag=0;
 
-int Clk_Hour=10, Clk_Min=14, Clk_Sec=50;
+int Clk_Hour=10, Clk_Min=8, Clk_Sec=50;
 int Alr_Hour=10, Alr_Min=15;
 int Light_Time=6, Ala_Time=6, Clk_Time=6;
 int PreAlr_Hour=0, PreAlr_Min=0;
@@ -124,6 +112,7 @@ int Previous_Button_Press = 0;
 volatile int Flag=0;
 volatile int Button=0;
 int Sound_Flag = 0;
+int Buzzer_Flag = 0;
 
 #define BUFFER_SIZE 100
 unsigned int Serial_Flag=0;
@@ -155,7 +144,6 @@ void main(void)
     setupSerial();
     __enable_interrupt();
     SetUpTimer32ForCounter();
-
 
     if((Alarm_Status == 1) || (Alarm_Status == 2)){             //If alarm is on or snoozed
             if(Clock_Time == Alarm_Time)                            //If the alarm and clock times are in AM or PM
@@ -442,6 +430,9 @@ void main(void)
                     Flag = 0;
                     Button = 0;
                     Previous_Button_Press = 0;
+                    Alarm_Flag = 0;
+                    Sound_Flag = 0;
+                    Light_Time = 0;
                 }
                 break;
 
@@ -455,6 +446,8 @@ void main(void)
                         PreAlr_Min = Alr_Min;                       //Reset alarm minute
                         PreAlr_Time = Alarm_Time;                   //Reset alarm time
 
+                        counter = 0;
+                        Brightness = 0;
                         Alarm_Status = 2;                           //Alarm status is snooze
                         AlarmGoingOff = 0;
                         counter = 0;
@@ -466,6 +459,7 @@ void main(void)
                         TIMER_A2 -> CCTL[1] = 0;
                         TIMER_A2 -> CCR[1] = 0;
                         TIMER_A2 -> CTL = 0;
+                        Brightness = 0;
                         Sound_Flag = 0;
                         TIMER_A0 -> CCR[1] = previous_brightness;  //Reset brightness
 
@@ -491,12 +485,15 @@ void main(void)
                 Button = 0;
                 break;
 
-
 	        //On/Off
                 //0 0ff, 1 on, 2 snooze
             case 4:
                 if(Alarm_Status == 0) {
                     Alarm_Status = 1;
+                    AlarmGoingOff = 0;
+                    Alarm_Flag = 0;
+                    Sound_Flag = 0;
+                    Buzzer_Flag = 0;
                 }
 
                 else if((Alarm_Status == 1) || (Alarm_Status == 2)) {
@@ -518,6 +515,8 @@ void main(void)
                         TIMER_A2 -> CCR[1] = 0;
                         TIMER_A2 -> CTL = 0;
                         Sound_Flag = 0;
+                        Brightness = 0;
+                        counter = 0;
 
                         Alr_Hour = PreAlr_Hour;                     //Reset alarm hour
                         Alr_Min = PreAlr_Min;                       //Reset alarm minute
@@ -527,11 +526,13 @@ void main(void)
                     }
 
                     //sounding alarm
-                    if(AlarmGoingOff == 1)
+                    else if(AlarmGoingOff == 1)
                     {
                         counter = 0;
                         Alarm_Status = 1;                           //Alarm status is on
                         AlarmGoingOff = 0;
+                        Sound_Flag = 0;
+                        Brightness = 0;
 
                         TIMER_A0  -> CCR[3] = 0;                    //Turn off LEDs
                         TIMER_A0  -> CCR[4] = 0;
@@ -541,7 +542,6 @@ void main(void)
                         TIMER_A2 -> CCTL[1] = 0;
                         TIMER_A2 -> CCR[1] = 0;
                         TIMER_A2 -> CTL = 0;
-                        Sound_Flag = 0;
 
                         TIMER_A0 -> CCR[1] = previous_brightness;  //Reset brightness
 
@@ -549,14 +549,17 @@ void main(void)
                         Alr_Min = PreAlr_Min;                       //Reset alarm minute
                         Alarm_Time = PreAlr_Time;                   //Reset alarm time
 
-                        Alarm_Flag = 1;                             //Set flag to not make alarm go off
+                        Alarm_Flag = 0;                             //Set flag to not make alarm go off
                     }
-                    if((AlarmGoingOff == 0) && ((Light_Time > 5) || (Light_Time < 0)))
+                    else if((AlarmGoingOff == 0) && ((Light_Time > 5) || (Light_Time < 0)))
                          {
+                        Alarm_Flag = 0;                             //Set flag to not make alarm go off
                         Alarm_Status = 0;
                         Alr_Hour = PreAlr_Hour;                     //Reset alarm hour
                         Alr_Min = PreAlr_Min;                       //Reset alarm minute
                         Alarm_Time = PreAlr_Time;                   //Reset alarm time
+                        counter = 0;
+                        Brightness = 0;
                     }
                 }
                 Flag = 0;
@@ -657,8 +660,8 @@ void Clock_Function(int Speed)
     }
 
     if((Speed == 0) && (Light_Time <= 5) && (Alarm_Flag == 0)) {    //If light time is within 5 minutes before the alarm
-        counter++;                                                  //Increment counter
 
+        counter++;                                                  //Increment counter
         if(Light_Time > 0)
         {
             if(counter == 3) {                              //If counter is 3
@@ -684,6 +687,12 @@ void Clock_Function(int Speed)
         }
     }
 
+    if((Speed == 1) && (Clk_Min == Alr_Min) && (Clk_Hour == Alr_Hour))
+    {
+        AlarmGoingOff = 1;
+    }
+
+
     //if alarm is going off
     if((Alr_Min == Clk_Min) && (Alr_Hour == Clk_Hour) && (Clk_Sec == 0) && (Alarm_Flag == 0) && (Light_Time == 0))
     {
@@ -700,13 +709,43 @@ void Clock_Function(int Speed)
         TIMER_A0 -> CCR[1]  = 18750;
         TIMER_A0 -> CCR[3]  = 18750;                    //Set brightness for Green LED to 100%
         TIMER_A0 -> CCR[4]  = 18750;                    //Set brightness for Blue LED to 100%
+
         Light_Time = 6;                                //Set light time equal to 10
         counter = 0;
+        Buzzer_Flag = 1;
+        SetupTimer32ForSound();                         //Begin alarm sound
+    }
+
+    if((AlarmGoingOff == 0) && ((Light_Time > 5) || (Light_Time < 0)))
+    {
+        TIMER32_2->CONTROL = 0;        //Sets timer 2 for Enabled, Periodic, With Interrupt, No Prescaler, 32 bit mode, One Shot Mode
+        TIMER32_2->LOAD = 0;          //Set to a count down of 1 second on 3 MHz clock
+        TIMER_A2->CCR[0] = 0;                   // Turn off to start
+        TIMER_A2->CCTL[1] = 0; // Setup Timer A0_1 Reset/Set, Interrupt, No Output
+        TIMER_A2->CCR[1] = 0;                   // Turn off timerA to start
+        TIMER_A2->CTL = 0;     // Count Up mode using SMCLK, Clears, Clear Interrupt Flag
+    }
+
+    if((AlarmGoingOff == 1) && (Buzzer_Flag == 0))
+    {
+        TIMER32_2->CONTROL = 0;        //Sets timer 2 for Enabled, Periodic, With Interrupt, No Prescaler, 32 bit mode, One Shot Mode
+        TIMER32_2->LOAD = 0;          //Set to a count down of 1 second on 3 MHz clock
+        TIMER_A2->CCR[0] = 0;                   // Turn off to start
+        TIMER_A2->CCTL[1] = 0; // Setup Timer A0_1 Reset/Set, Interrupt, No Output
+        TIMER_A2->CCR[1] = 0;                   // Turn off timerA to start
+        TIMER_A2->CTL = 0;     // Count Up mode using SMCLK, Clears, Clear Interrupt Flag
+
+        previous_brightness = Back_Light;
+
+        Light_Time = 6;                                //Set light time equal to 10
+        counter = 0;
+
+        Buzzer_Flag = 1;
         SetupTimer32ForSound();                         //Begin alarm sound
     }
 
     //if Alarm was supposed to go off
-    else if((Alr_Min == Clk_Min) && (Alr_Hour == Clk_Hour) && (Clk_Sec == 0) && (Alarm_Flag == 1) && (Light_Time == 0))
+    else if((Alr_Min == Clk_Min) && (Alr_Hour == Clk_Hour) && (Clk_Sec == 0) && (Alarm_Flag == 1))
     {
         AlarmGoingOff = 0;
         Alarm_Flag = 0;
@@ -744,7 +783,6 @@ void GetTemp()
 
 void Print_To_LCD(char *String1, char *String2, char *String3, char *String4, int length)
 {
-    char String6[] = "     ";
     int i=0;
     ComWrite(0x02);                  //Home cursor
     PrintString(String1);            //Print first string
@@ -765,8 +803,6 @@ void Print_To_LCD(char *String1, char *String2, char *String3, char *String4, in
     DataWrite(0xDF);                 //Print degree symbol
     delay_micro(100);
     DataWrite('F');                  //Print units
-    PrintString(String6);            //Print second string
-
 }
 
 void Store_Alarm_Status(int Status)
@@ -827,6 +863,8 @@ void TimerALEDInit()
 
 void PORT5_IRQHandler(void) //Sets time and alarm interrupt
 {
+    while (!((P5->IN & BIT1) == BIT1)) {}
+    while (!((P5->IN & BIT7) == BIT7)) {}
     if(P5->IFG & BIT7) {  //Set time
         delay_micro(100);
         if((Previous_Button_Press == 0) | (Previous_Button_Press == 1)) {
@@ -847,6 +885,8 @@ void PORT5_IRQHandler(void) //Sets time and alarm interrupt
 
 void PORT2_IRQHandler(void)     //Snooze and on/off interrupts
 {
+    while (!((P2->IN & BIT3) == BIT3)) {}
+    while (!((P2->IN & BIT5) == BIT5)) {}
     if(P2->IFG & BIT3) { //Snooze
         delay_micro(100);
         if(Button == 1) {
@@ -943,26 +983,26 @@ void PORT2_IRQHandler(void)     //Snooze and on/off interrupts
 
 void PORT1_IRQHandler(void)
 {
-    if(P1->IFG & BIT1) {     //Normal Speed
+    if(P1->IFG & BIT6) {     //Normal Speed
         Speed_Flag = 0;
-        P1 -> IFG &=~ BIT1;
+        P1 -> IFG &=~ BIT6;
     }
-    if(P1->IFG & BIT4) {     //Fast Speed
+    if(P1->IFG & BIT7) {     //Fast Speed
         Speed_Flag = 1;
-        P1 -> IFG &=~ BIT4;
+        P1 -> IFG &=~ BIT7;
     }
 }
 
 void InitInterrupts()
 {
     //Speed button interrupts
-    P1->SEL0 &=~ (BIT1|BIT4);
-    P1->SEL1 &=~ (BIT1|BIT4);
-    P1->DIR  &=~ (BIT1|BIT4);
-    P1->REN  |=  (BIT1|BIT4);
-    P1->OUT  |=  (BIT1|BIT4);
-    P1->IES  |=  (BIT1|BIT4);
-    P1->IE   |=  (BIT1|BIT4);
+    P1->SEL0 &=~ (BIT6|BIT7);
+    P1->SEL1 &=~ (BIT6|BIT7);
+    P1->DIR  &=~ (BIT6|BIT7);
+    P1->REN  |=  (BIT6|BIT7);
+    P1->OUT  |=  (BIT6|BIT7);
+    P1->IES  |=  (BIT6|BIT7);
+    P1->IE   |=  (BIT6|BIT7);
     P1->IFG   =  0;
     NVIC ->ISER[1] = 1 << ((PORT1_IRQn) & 31);
     //Button interrupt for setting alarm and time
